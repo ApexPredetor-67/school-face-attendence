@@ -17,6 +17,293 @@
       <button id="scan" class="btn btn-success" style="flex:1" disabled>◉ Scan & Mark Attendance</button>
     </div>
     <div id="message" class="scanner-toast-host" aria-live="polite" aria-atomic="true"></div>
+  </div>
+
+</div>
+
+<style>
+  .scanner-card { position: relative; }
+  .scanner-toast-host {
+    position: fixed;
+    top: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 9999;
+    width: min(560px, calc(100vw - 32px));
+    pointer-events: none;
+  }
+  .scanner-toast {
+    position: relative;
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    grid-template-rows: auto auto;
+    column-gap: 13px;
+    row-gap: 10px;
+    width: 100%;
+    box-sizing: border-box;
+    padding: 16px 18px 14px;
+    border-radius: 14px;
+    box-shadow: 0 14px 34px rgba(24, 35, 70, .22);
+    font-weight: 600;
+    line-height: 1.35;
+    opacity: 0;
+    transform: translateY(-18px) scale(.98);
+    transition: opacity .22s ease, transform .22s ease;
+    overflow: hidden;
+  }
+  .scanner-toast.is-visible {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  .scanner-toast-ok { background: #0f9d58; color: #fff; }
+  .scanner-toast-late { background: #f6b800; color: #3d2d00; }
+  .scanner-toast-err { background: #d93025; color: #fff; }
+  .scanner-toast-info { background: #1a73e8; color: #fff; }
+  .scanner-toast-icon {
+    display: inline-grid;
+    place-items: center;
+    width: 30px;
+    height: 30px;
+    flex: 0 0 30px;
+    border-radius: 50%;
+    background: rgba(255,255,255,.18);
+    font-weight: 800;
+    font-size: 16px;
+    grid-column: 1;
+    grid-row: 1;
+  }
+  .scanner-toast-content {
+    min-width: 0;
+    grid-column: 2;
+    grid-row: 1;
+  }
+  .scanner-toast-title {
+    font-size: 15px;
+    font-weight: 800;
+    margin-bottom: 2px;
+  }
+  .scanner-toast-body {
+    font-size: 13px;
+    font-weight: 500;
+    opacity: .96;
+    overflow-wrap: anywhere;
+  }
+  .scanner-toast-close {
+    grid-column: 3;
+    grid-row: 1;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    opacity: .82;
+    font-size: 20px;
+    line-height: 1;
+    padding: 2px 0 0 8px;
+    cursor: pointer;
+  }
+  .scanner-toast-track {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    height: 5px;
+    border-radius: 999px;
+    background: rgba(255,255,255,.26);
+    overflow: hidden;
+  }
+  .scanner-toast-progress {
+    height: 100%;
+    width: 100%;
+    border-radius: inherit;
+    background: currentColor;
+    opacity: .9;
+    transform-origin: left center;
+    animation: scanner-toast-countdown 4.2s linear forwards;
+  }
+  .scanner-toast-late .scanner-toast-progress { background: #7a5600; }
+  @keyframes scanner-toast-countdown {
+    from { transform: scaleX(1); }
+    to { transform: scaleX(0); }
+  }
+  @media (max-width: 620px) {
+    .scanner-toast-host { top: 14px; width: min(560px, calc(100vw - 20px)); }
+    .scanner-toast { padding: 14px 14px 12px; column-gap: 10px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .scanner-toast { transition: none; }
+  }
+</style>
+<script>
+(() => {
+  let stream = null;
+  let scanning = false;
+  const video = document.getElementById('video');
+  const btn = document.getElementById('scan');
+  const msg = document.getElementById('message');
+  const day = document.getElementById('dayBadge');
+  const cameraState = document.getElementById('cameraState');
+  const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+  let toastTimer = null;
+
+  const show = (text, kind, duration = 4200, title = null) => {
+    clearTimeout(toastTimer);
+    const meta = {
+      ok:   {icon: '✓', title: title || 'Attendance Marked Present!'},
+      late: {icon: '◷', title: title || 'Attendance Marked Late!'},
+      err:  {icon: '!', title: title || 'Attendance Not Marked'},
+      info: {icon: 'i', title: title || 'Information'}
+    }[kind] || {icon: 'i', title: title || 'Information'};
+
+    msg.className = `scanner-toast scanner-toast-${kind} is-visible`;
+    msg.innerHTML = `
+      <span class="scanner-toast-icon">${meta.icon}</span>
+      <div class="scanner-toast-content">
+        <div class="scanner-toast-title">${meta.title}</div>
+        <div class="scanner-toast-body">${text}</div>
+      </div>
+      <button type="button" class="scanner-toast-close" aria-label="Dismiss notification">×</button>
+      <div class="scanner-toast-track" aria-hidden="true"><div class="scanner-toast-progress"></div></div>
+    `;
+
+    const close = msg.querySelector('.scanner-toast-close');
+    close?.addEventListener('click', () => {
+      clearTimeout(toastTimer);
+      msg.classList.remove('is-visible');
+    }, {once: true});
+
+    if (duration > 0) {
+      const progress = msg.querySelector('.scanner-toast-progress');
+      progress.style.animationDuration = `${duration}ms`;
+      toastTimer = setTimeout(() => {
+        msg.classList.remove('is-visible');
+      }, duration);
+    }
+  };
+
+  async function checkSchoolDay() {
+    try {
+      const r = await apiFetch('/api/school-day');
+      const x = await readJSON(r);
+      if (!r.ok) throw new Error(x.error || `HTTP ${r.status}`);
+      if (x.is_working) {
+        day.className = 'badge badge-green';
+        day.textContent = 'Working day';
+        if (stream && video.videoWidth > 0) btn.disabled = false;
+      } else {
+        day.className = 'badge badge-gray';
+        day.textContent = 'Non-working day';
+        btn.disabled = true;
+        show('Attendance is disabled because today is non-working in the school calendar.', 'info');
+      }
+    } catch (error) {
+      day.className = 'badge badge-red';
+      day.textContent = 'Calendar unavailable';
+      btn.disabled = true;
+      show('The school calendar could not be checked. Attendance is disabled.', 'err');
+    }
+  }
+
+  function waitForVideoReady(timeout = 8000) {
+    if (video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA && video.videoWidth && video.videoHeight) {
+      return Promise.resolve();
+    }
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error('Camera did not finish starting. Please try again.')), timeout);
+      video.addEventListener('loadeddata', () => {
+        clearTimeout(timer);
+        resolve();
+      }, {once: true});
+    });
+  }
+
+  async function start() {
+    try {
+      if (!navigator.mediaDevices?.getUserMedia) throw new Error('This browser does not support camera access.');
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: {width: {ideal: 640}, height: {ideal: 480}, facingMode: 'user'},
+        audio: false
+      });
+      video.srcObject = stream;
+      await video.play();
+      await waitForVideoReady();
+      cameraState.textContent = 'Camera ready';
+      cameraState.className = 'camera-state ready';
+      await checkSchoolDay();
+    } catch (error) {
+      cameraState.textContent = 'Camera unavailable';
+      cameraState.className = 'camera-state error';
+      show('Camera access is required: ' + error.message, 'err');
+      btn.disabled = true;
+    }
+  }
+
+  function frame() {
+    if (!video.videoWidth || !video.videoHeight) throw new Error('Camera frame is not ready yet.');
+    const canvas = document.createElement('canvas');
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const context = canvas.getContext('2d', {willReadFrequently: false});
+    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+    return canvas.toDataURL('image/jpeg', .94);
+  }
+
+  async function scan() {
+    if (scanning || !stream) return;
+    scanning = true;
+    btn.disabled = true;
+    show('Collecting 7 verification frames…', 'info');
+    const images = [];
+
+    try {
+      await waitForVideoReady();
+      for (let i = 0; i < 7; i++) {
+        images.push(frame());
+        await sleep(160);
+      }
+
+      const r = await apiFetch('/api/attendance/mark', {
+        method: 'POST',
+        body: JSON.stringify({images})
+      });
+      const d = await readJSON(r);
+      if (r.ok) {
+        const statusKind = String(d.status || '').toLowerCase() === 'late' ? 'late' : 'ok';
+        const details = d.message + (d.already_marked
+          ? ' No duplicate record was created.'
+          : ` Verified across ${d.votes || 0}/${d.frames_used || 7} valid frames.`);
+        show(details, statusKind, 4200, statusKind === 'late' ? 'Attendance Marked Late!' : 'Attendance Marked Present!');
+      } else {
+        show(d.error || 'Recognition failed.', 'err');
+      }
+    } catch (error) {
+      show(error.message || 'Scanner error. Please try again.', 'err');
+    } finally {
+      scanning = false;
+      await checkSchoolDay();
+    }
+  }
+
+  btn.addEventListener('click', scan);
+  start();
+  window.addEventListener('beforeunload', () => stream?.getTracks().forEach(track => track.stop()));
+})();
+</script>
+{% endblock %}{% extends "base.html" %}
+{% block title %}Attendance Scanner{% endblock %}
+{% block crumb %}Attendance Scanner{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Attendance Scanner</h1><p>One student at a time. The original seven-frame conservative recognition flow is preserved.</p></div>
+  <span id="dayBadge" class="badge badge-yellow">Checking school calendar…</span>
+</div>
+
+<div style="max-width:820px;margin:auto">
+  <div class="card scanner-card">
+    <div class="camera-stage">
+      <video id="video" autoplay playsinline muted></video>
+      <div id="cameraState" class="camera-state">Starting camera…</div>
+    </div>
+    <div class="actions" style="margin-top:14px">
+      <button id="scan" class="btn btn-success" style="flex:1" disabled>◉ Scan & Mark Attendance</button>
+    </div>
+    <div id="message" class="scanner-toast-host" aria-live="polite" aria-atomic="true"></div>
     <div id="progress" style="display:none;height:8px;background:#edf0f5;border-radius:10px;margin-top:12px;overflow:hidden"><div style="height:100%;width:0;background:linear-gradient(90deg,var(--primary),#8495ef);transition:width .15s ease"></div></div>
   </div>
 
