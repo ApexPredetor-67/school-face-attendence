@@ -42,36 +42,98 @@
     pointer-events: none;
   }
   .scanner-toast {
-    display: flex;
-    align-items: center;
-    gap: 12px;
+    position: relative;
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    grid-template-rows: auto auto;
+    column-gap: 13px;
+    row-gap: 10px;
     width: 100%;
     box-sizing: border-box;
-    padding: 14px 18px;
-    border-radius: 12px;
+    padding: 16px 18px 14px;
+    border-radius: 14px;
     box-shadow: 0 14px 34px rgba(24, 35, 70, .22);
     font-weight: 600;
     line-height: 1.35;
     opacity: 0;
     transform: translateY(-18px) scale(.98);
     transition: opacity .22s ease, transform .22s ease;
+    overflow: hidden;
   }
   .scanner-toast.is-visible {
     opacity: 1;
     transform: translateY(0) scale(1);
   }
   .scanner-toast-ok { background: #0f9d58; color: #fff; }
+  .scanner-toast-late { background: #f6b800; color: #3d2d00; }
   .scanner-toast-err { background: #d93025; color: #fff; }
   .scanner-toast-info { background: #1a73e8; color: #fff; }
   .scanner-toast-icon {
     display: inline-grid;
     place-items: center;
-    width: 25px;
-    height: 25px;
-    flex: 0 0 25px;
+    width: 30px;
+    height: 30px;
+    flex: 0 0 30px;
     border-radius: 50%;
     background: rgba(255,255,255,.18);
     font-weight: 800;
+    font-size: 16px;
+    grid-column: 1;
+    grid-row: 1;
+  }
+  .scanner-toast-content {
+    min-width: 0;
+    grid-column: 2;
+    grid-row: 1;
+  }
+  .scanner-toast-title {
+    font-size: 15px;
+    font-weight: 800;
+    margin-bottom: 2px;
+  }
+  .scanner-toast-body {
+    font-size: 13px;
+    font-weight: 500;
+    opacity: .96;
+    overflow-wrap: anywhere;
+  }
+  .scanner-toast-close {
+    grid-column: 3;
+    grid-row: 1;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    opacity: .82;
+    font-size: 20px;
+    line-height: 1;
+    padding: 2px 0 0 8px;
+    cursor: pointer;
+  }
+  .scanner-toast-track {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    height: 5px;
+    border-radius: 999px;
+    background: rgba(255,255,255,.26);
+    overflow: hidden;
+  }
+  .scanner-toast-progress {
+    height: 100%;
+    width: 100%;
+    border-radius: inherit;
+    background: currentColor;
+    opacity: .9;
+    transform-origin: left center;
+    animation: scanner-toast-countdown 4.2s linear forwards;
+  }
+  .scanner-toast-late .scanner-toast-progress { background: #7a5600; }
+  @keyframes scanner-toast-countdown {
+    from { transform: scaleX(1); }
+    to { transform: scaleX(0); }
+  }
+  @media (max-width: 620px) {
+    .scanner-toast-host { top: 14px; width: min(560px, calc(100vw - 20px)); }
+    .scanner-toast { padding: 14px 14px 12px; column-gap: 10px; }
   }
   @media (prefers-reduced-motion: reduce) {
     .scanner-toast { transition: none; }
@@ -90,11 +152,35 @@
   const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
   let toastTimer = null;
 
-  const show = (text, kind, duration = 4200) => {
+  const show = (text, kind, duration = 4200, title = null) => {
     clearTimeout(toastTimer);
+    const meta = {
+      ok:   {icon: '✓', title: title || 'Attendance Marked Present!'},
+      late: {icon: '◷', title: title || 'Attendance Marked Late!'},
+      err:  {icon: '!', title: title || 'Attendance Not Marked'},
+      info: {icon: 'i', title: title || 'Information'}
+    }[kind] || {icon: 'i', title: title || 'Information'};
+
     msg.className = `scanner-toast scanner-toast-${kind} is-visible`;
-    msg.innerHTML = `<span class="scanner-toast-icon">${kind === 'ok' ? '✓' : kind === 'err' ? '!' : 'i'}</span><span>${text}</span>`;
+    msg.innerHTML = `
+      <span class="scanner-toast-icon">${meta.icon}</span>
+      <div class="scanner-toast-content">
+        <div class="scanner-toast-title">${meta.title}</div>
+        <div class="scanner-toast-body">${text}</div>
+      </div>
+      <button type="button" class="scanner-toast-close" aria-label="Dismiss notification">×</button>
+      <div class="scanner-toast-track" aria-hidden="true"><div class="scanner-toast-progress"></div></div>
+    `;
+
+    const close = msg.querySelector('.scanner-toast-close');
+    close?.addEventListener('click', () => {
+      clearTimeout(toastTimer);
+      msg.classList.remove('is-visible');
+    }, {once: true});
+
     if (duration > 0) {
+      const progress = msg.querySelector('.scanner-toast-progress');
+      progress.style.animationDuration = `${duration}ms`;
       toastTimer = setTimeout(() => {
         msg.classList.remove('is-visible');
       }, duration);
@@ -190,12 +276,11 @@
       });
       const d = await readJSON(r);
       if (r.ok) {
-        show(
-          d.message + (d.already_marked
-            ? ' No duplicate record was created.'
-            : ` Verified across ${d.votes || 0}/${d.frames_used || 7} valid frames.`),
-          'ok'
-        );
+        const statusKind = String(d.status || '').toLowerCase() === 'late' ? 'late' : 'ok';
+        const details = d.message + (d.already_marked
+          ? ' No duplicate record was created.'
+          : ` Verified across ${d.votes || 0}/${d.frames_used || 7} valid frames.`);
+        show(details, statusKind, 4200, statusKind === 'late' ? 'Attendance Marked Late!' : 'Attendance Marked Present!');
       } else {
         show(d.error || 'Recognition failed.', 'err');
       }
