@@ -141,7 +141,7 @@
     const m = current.getMonth() + 1;
     const data = cache.get(key(y, m)) || [];
     const item = data.find(x => x.date === date) || {};
-    $('selectedDate').textContent = date;
+    $('selectedDate').textContent = `Selected date: ${formatIndianDate(date)}`;
     $('dayType').value = String(Boolean(item.is_working));
     $('reason').value = item.reason || '';
     $('editCard').style.display = 'block';
@@ -216,7 +216,7 @@
         if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
         importedDates = data.dates || [];
         $('importSummary').textContent = `${data.working_count} working date(s) and ${data.non_working_count} non-working date(s) detected.`;
-        $('importRows').innerHTML = importedDates.map(item => `<tr><td>${window.escapeHtml(item.date)}</td><td><span class="badge ${item.is_working ? 'badge-green' : 'badge-gray'}">${item.is_working ? 'Working' : 'Non-working'}</span></td><td>${window.escapeHtml(item.reason)}</td></tr>`).join('');
+        $('importRows').innerHTML = importedDates.map(item => `<tr><td>${window.escapeHtml(formatIndianDate(item.date))}</td><td><span class="badge ${item.is_working ? 'badge-green' : 'badge-gray'}">${item.is_working ? 'Working' : 'Non-working'}</span></td><td>${window.escapeHtml(item.reason)}</td></tr>`).join('');
         $('importPreview').style.display = 'block';
         $('applyImport').disabled = !importedDates.length;
         $('importMsg').className = 'message ok';
