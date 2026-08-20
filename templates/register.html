@@ -3,12 +3,12 @@
 {% block crumb %}Register Student{% endblock %}
 {% set active_nav='register' %}
 {% block content %}
-<div class="page-head"><div><h1>Register Student</h1><p>The student is created only after the five required details and successful face training are complete.</p></div><span class="badge badge-yellow">Face required</span></div>
+<div class="page-head"><div><h1>Register Student</h1><p>The student is created after the required details and successful face training are complete. Section is required for all classes except XI and XII.</p></div><span class="badge badge-yellow">Face required</span></div>
 <div class="steps"><div id="s1" class="step on"></div><div id="s2" class="step"></div><div id="s3" class="step"></div></div>
 <div class="capture-layout">
   <div class="card">
     <div id="detailsPane">
-      <div class="section-title"><h2>Student information</h2><span class="badge badge-yellow">5 fields</span></div>
+      <div class="section-title"><h2>Student information</h2><span id="fieldBadge" class="badge badge-yellow">4 required + section*</span></div>
       <form id="registrationForm">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <div class="form-grid">
@@ -19,7 +19,7 @@
           <div class="form-group"><label>Full name *</label><input name="name" maxlength="120" required pattern="[A-Z][A-Z .'\-]*" title="Enter the full name in CAPITAL LETTERS"></div>
           <div class="form-group"><label>Class *</label><input name="class_name" maxlength="30" placeholder="e.g. X" required pattern="[A-Z0-9]+" title="Class must use CAPITAL LETTERS or numbers"></div>
         </div>
-        <div class="form-group"><label>Section *</label><input name="section" maxlength="10" placeholder="e.g. A" required pattern="[A-Z0-9]+" title="Section must use CAPITAL LETTERS or numbers"></div>
+        <div class="form-group"><label id="sectionLabel">Section *</label><input name="section" maxlength="10" placeholder="e.g. A" pattern="[A-Z0-9]+" title="Section must use CAPITAL LETTERS or numbers"><div id="sectionHint" class="muted small" style="margin-top:6px">Required for Classes I–X. Optional for XI and XII.</div></div>
         <button class="btn btn-primary" type="submit">Continue to Face Capture →</button>
       </form>
       <div id="detailsMsg"></div>
@@ -52,6 +52,21 @@ uppercaseFields.forEach(name => {
   const input = document.querySelector(`[name="${name}"]`);
   input?.addEventListener('input', () => { input.value = input.value.toUpperCase(); });
 });
+function updateSectionRequirement() {
+  const classInput = document.querySelector('[name="class_name"]');
+  const sectionInput = document.querySelector('[name="section"]');
+  const label = $('sectionLabel');
+  const badge = $('fieldBadge');
+  const hint = $('sectionHint');
+  const cls = (classInput?.value || '').trim().toUpperCase();
+  const optional = cls === 'XI' || cls === 'XII';
+  sectionInput.required = !optional;
+  label.textContent = optional ? 'Section (optional)' : 'Section *';
+  badge.textContent = optional ? '4 required fields' : '4 required + section*';
+  hint.textContent = optional ? 'Section is not required for Classes XI and XII.' : 'Section is required for Classes I–X.';
+}
+document.querySelector('[name="class_name"]')?.addEventListener('input', updateSectionRequirement);
+updateSectionRequirement();
 function poseDistance(a, b) {
   if (!a || !b) return Infinity;
   return Math.abs((a.tilt ?? 0) - (b.tilt ?? 0)) * 1.6
