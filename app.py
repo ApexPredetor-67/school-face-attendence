@@ -512,10 +512,29 @@ def get_school_clock_override():
 
 
 def effective_time_for_request():
+    """Return the school-facing time for attendance/testing only.
+
+    The real server clock is never changed. When the admin selects a test
+    time, only attendance-related behavior uses that HH:MM value.
+    """
     override = get_school_clock_override()
     if override:
         return datetime.strptime(override, "%H:%M").time()
     return now_local().time()
+
+
+def effective_school_datetime():
+    """Return the virtual school datetime while preserving the real server date.
+
+    This is intentionally separate from now_local(): audit records, logins,
+    jobs, database timestamps, and server diagnostics continue to use the
+    actual server time. Only school-facing attendance logic should use this.
+    """
+    live = now_local()
+    override = get_school_clock_override()
+    if override:
+        return datetime.combine(live.date(), datetime.strptime(override, "%H:%M").time())
+    return live
 
 
 def teacher_scope_filter(teacher):
@@ -810,11 +829,16 @@ def register():
         admission_number = normalize_text(request.form.get("admission_number"), 50)
         roll_number = normalize_text(request.form.get("roll_number"), 30)
         class_name, class_error = uppercase_school_field(request.form.get("class_name"), "Class", 30)
-        section, section_error = uppercase_school_field(request.form.get("section"), "Section", 10)
+        raw_section = normalize_text(request.form.get("section"), 10)
+        section, section_error = uppercase_school_field(raw_section, "Section", 10) if raw_section else (None, None)
+        section_optional = class_name in {"XI", "XII"}
         if name_error or class_error or section_error:
             return json_error(name_error or class_error or section_error)
-        if not all([name, admission_number, roll_number, class_name, section]):
-            return json_error("Admission number, roll number, name, class and section are required")
+        if not all([name, admission_number, roll_number, class_name]):
+            return json_error("Admission number, roll number, name and class are required")
+        if not section_optional and not section:
+            return json_error("Section is required for Classes I-X.")
+        section = section or None
         if Student.query.filter(func.lower(Student.admission_number) == admission_number.lower()).first():
             return json_error("Admission number is already registered", 409)
         token = secrets.token_urlsafe(24)
@@ -1003,6 +1027,8 @@ def school_day_api():
         "reason": override.reason if override else None,
         "override": bool(override),
         "time": effective.strftime("%H:%M"),
+        "live_server_time": now_local().strftime("%H:%M"),
+        "using_override": bool(get_school_clock_override()),
         "attendance_from": ATTENDANCE_PRESENT_FROM.strftime("%H:%M"),
         "late_after": ATTENDANCE_LATE_AFTER.strftime("%H:%M"),
         "absent_after": ATTENDANCE_ABSENT_AFTER.strftime("%H:%M"),
@@ -1093,7 +1119,7 @@ def mark_attendance():
 
         if existing is not None:
             existing.status = scan_status
-            existing.time_in = now_local().time().replace(microsecond=0)
+            existing.time_in = effective_time_for_request().replace(microsecond=0)
             existing.source = "face"
             existing.marked_by = "Attendance Scanner"
             existing.note = "Corrected by face-recognition scan"
@@ -1102,7 +1128,7 @@ def mark_attendance():
             attendance = Attendance(
                 student_id=student.id,
                 date=today,
-                time_in=now_local().time().replace(microsecond=0),
+                time_in=effective_time_for_request().replace(microsecond=0),
                 status=scan_status,
                 source="face",
                 marked_by="Attendance Scanner",
@@ -1123,6 +1149,7 @@ def mark_attendance():
             "student_id": student.id,
             "student_name": student.name,
             "attendance_status": scan_status,
+            "school_time": effective_time_for_request().strftime("%H:%M"),
             "distance": round(distance, 4),
             "votes": vote_count,
             "frames_used": valid_frames,
@@ -1472,7 +1499,12 @@ def audit_api():
 @admin_required
 def admin_clock_get():
     override = get_school_clock_override()
-    return jsonify({"override": override, "live_time": now_local().strftime("%H:%M"), "using_override": bool(override)})
+    return jsonify({
+        "override": override,
+        "school_time": effective_time_for_request().strftime("%H:%M"),
+        "live_time": now_local().strftime("%H:%M"),
+        "using_override": bool(override),
+    })
 
 
 @app.route("/api/admin/clock", methods=["POST"])
@@ -1493,7 +1525,13 @@ def admin_clock_set():
         clock.override_time = selected
         clock.updated_at = now_local()
         db.session.commit()
-        return jsonify({"message": "School Clock override enabled for all users", "time": selected, "using_override": True})
+        return jsonify({
+            "message": "School test time is now active across attendance features for all users",
+            "time": selected,
+            "school_time": selected,
+            "live_time": now_local().strftime("%H:%M"),
+            "using_override": True,
+        })
     except SQLAlchemyError:
         db.session.rollback()
         app.logger.exception("Could not set shared school clock")
@@ -1543,7 +1581,11 @@ def teacher_change_password():
 @app.route("/admin/school-time")
 @admin_required
 def admin_school_time_page():
-    return render_template("admin_school_time.html", school_clock_override=get_school_clock_override(), live_time=now_local().strftime("%H:%M"))
+    return render_template(
+        "admin_school_time.html",
+        school_clock_override=get_school_clock_override(),
+        live_time=now_local().strftime("%H:%M"),
+    )
 
 
 @app.route("/admin/calendar")
