@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}DAV PS KKP • Student Attendance{% endblock %}
+{% block content %}
+<div class="home-shell">
+  <header class="home-top">
+    <div class="brand" style="padding:0"><img class="brand-icon" src="{{ url_for('static', filename='branding/dav-ps-kkp-logo.png') }}" alt="DAV PS KKP logo"><div><span class="brand-school">DAV PS KKP</span><span class="brand-product">Student Attendance</span></div></div>
+    <a class="btn btn-outline" href="/scan">Attendance Scanner</a>
+  </header>
+  <main class="home-main">
+    <div class="page-head"><div><h1>Home</h1><p>Fast, local and face-recognition based attendance management.</p></div></div>
+    <div class="home-stats">
+      <div class="card stat-card"><div class="stat-label">REGISTERED STUDENTS</div><div class="stat">{{ total_students }}</div><div class="stat-icon">♙</div></div>
+      <div class="card stat-card"><div class="stat-label">TODAY PRESENT</div><div class="stat">{{ today_present }}</div><div class="stat-icon">✓</div></div>
+    </div>
+    <div class="card get-started" style="margin-top:18px">
+      <h2 style="margin:0 0 6px">Get started</h2><p class="muted">Choose your account type to continue.</p>
+      <div class="start-buttons" style="margin-top:14px">
+        {% if admin_logged_in %}<a class="btn btn-primary" href="/admin">⚙ Open Admin</a>{% else %}<a class="btn btn-primary" href="/login">⚙ Admin Login</a>{% endif %}
+        {% if teacher_logged_in %}<a class="btn btn-success" href="/teacher">♙ Open Teacher</a>{% else %}<a class="btn btn-success" href="/teacher/login">♙ Teacher Login</a>{% endif %}
+        <a class="btn btn-outline" href="/scan">◉ Attendance Scanner</a>
+      </div>
+    </div>
+    <div class="workflow-note"><strong>Attendance workflow</strong><p class="muted small" style="margin-bottom:0">The school calendar decides whether attendance can be marked. Admins can edit the calendar; teachers can view it only.</p></div>
+  </main>
+</div>
+{% endblock %}

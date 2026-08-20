@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Admin Account{% endblock %}
+{% block crumb %}Admin Account{% endblock %}
+{% set active_nav='account' %}
+{% block content %}
+<div class="page-head"><div><h1>Admin Account</h1><p>Update the administrator password used for admin access and as the teacher master password.</p></div></div>
+<div class="card" style="max-width:620px">
+  <div class="section-title"><div><h2>Change admin password</h2><p class="small muted" style="margin:4px 0 0">This password will also work as the master login password for teacher usernames.</p></div><span class="badge badge-green">Secure</span></div>
+  {% if error %}<div class="message err">{{ error }}</div>{% endif %}
+  {% if success %}<div class="message ok">{{ success }}</div>{% endif %}
+  <form method="post" style="margin-top:16px">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <div class="form-group"><label>Current password</label><input type="password" name="current_password" required autocomplete="current-password"></div>
+    <div class="form-grid"><div class="form-group"><label>New password</label><input type="password" name="new_password" minlength="8" required autocomplete="new-password"></div><div class="form-group"><label>Confirm new password</label><input type="password" name="confirm_password" minlength="8" required autocomplete="new-password"></div></div>
+    <div class="actions"><button class="btn btn-primary" type="submit">Save New Password</button><a class="btn btn-light" href="/admin">Cancel</a></div>
+  </form>
+</div>
+<div class="card" style="max-width:620px;margin-top:18px"><div class="section-title"><h2>Password policy</h2></div><div class="grid grid-3"><div><strong>8+ characters</strong><p class="small muted">Short passwords are rejected.</p></div><div><strong>Private admin access</strong><p class="small muted">Only an authenticated admin can change this password.</p></div><div><strong>Teacher master sign-in</strong><p class="small muted">The current admin password can open any active teacher username.</p></div></div></div>
+{% endblock %}

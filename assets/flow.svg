@@ -1,0 +1,36 @@
+<svg width="1200" height="230" viewBox="0 0 1200 230" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="line" x1="70" y1="0" x2="1130" y2="0" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#60A5FA"/>
+      <stop offset="0.5" stop-color="#A78BFA"/>
+      <stop offset="1" stop-color="#34D399"/>
+    </linearGradient>
+  </defs>
+  <rect x="1" y="1" width="1198" height="228" rx="24" stroke="#CBD5E1"/>
+  <path d="M120 112H1080" stroke="#CBD5E1" stroke-width="8" stroke-linecap="round"/>
+  <path d="M120 112H1080" stroke="url(#line)" stroke-width="4" stroke-linecap="round" stroke-dasharray="18 26">
+    <animate attributeName="stroke-dashoffset" values="0;-220" dur="2.8s" repeatCount="indefinite"/>
+  </path>
+
+  <g font-family="Inter,Segoe UI,Arial,sans-serif" text-anchor="middle">
+    <circle cx="120" cy="112" r="38" fill="#EFF6FF" stroke="#60A5FA" stroke-width="3"/>
+    <text x="120" y="118" font-size="24">📷</text>
+    <text x="120" y="175" font-size="16" font-weight="700" fill="#0F172A">Capture</text>
+
+    <circle cx="360" cy="112" r="38" fill="#F5F3FF" stroke="#A78BFA" stroke-width="3"/>
+    <text x="360" y="118" font-size="24">🧠</text>
+    <text x="360" y="175" font-size="16" font-weight="700" fill="#0F172A">Verify</text>
+
+    <circle cx="600" cy="112" r="38" fill="#ECFDF5" stroke="#34D399" stroke-width="3"/>
+    <text x="600" y="118" font-size="24">✅</text>
+    <text x="600" y="175" font-size="16" font-weight="700" fill="#0F172A">Mark</text>
+
+    <circle cx="840" cy="112" r="38" fill="#FFF7ED" stroke="#FB923C" stroke-width="3"/>
+    <text x="840" y="118" font-size="24">📊</text>
+    <text x="840" y="175" font-size="16" font-weight="700" fill="#0F172A">Record</text>
+
+    <circle cx="1080" cy="112" r="38" fill="#F0FDFA" stroke="#14B8A6" stroke-width="3"/>
+    <text x="1080" y="118" font-size="24">🏫</text>
+    <text x="1080" y="175" font-size="16" font-weight="700" fill="#0F172A">School</text>
+  </g>
+</svg>

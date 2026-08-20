@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block crumb %}Dashboard{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Dashboard</h1><p>Welcome to your student attendance dashboard.</p></div>
+  <div class="actions">
+    <a class="btn btn-primary" href="/attendance">◉ Scan Attendance</a>
+    <a class="btn btn-outline" href="/register">＋ Register Student</a>
+    <a class="btn btn-warning" href="/calendar">▦ Calendar</a>
+  </div>
+</div>
+
+<div class="card stat-card" style="max-width:360px">
+  <div class="stat-label">TODAY</div>
+  <div class="stat" style="font-size:21px">{{ "Working" if working_today else "Closed" }}</div>
+  <div class="stat-icon">●</div>
+</div>
+
+<div class="grid grid-2" style="margin-top:18px">
+  <div class="card">
+    <div class="section-title"><h2>Quick actions</h2></div>
+    <div class="quick">
+      <a href="/register"><strong>Register Student</strong><span>Admission, class and face capture</span></a>
+      <a href="/attendance"><strong>Mark Attendance</strong><span>Multi-frame face verification</span></a>
+      <a href="/students"><strong>View Students</strong><span>Class-wise student list</span></a>
+      <a href="/calendar"><strong>School Calendar</strong><span>Working days and holidays</span></a>
+    </div>
+  </div>
+  <div class="card">
+    <div class="section-title"><h2>Today's workflow</h2><span class="badge {{ 'badge-green' if working_today else 'badge-gray' }}">{{ "Working day" if working_today else "Non-working" }}</span></div>
+    <div class="message info">Face registration is mandatory. Attendance is accepted only on working school days and the calendar remains the source of truth for attendance calculations.</div>
+    <div class="actions" style="margin-top:15px">
+      <a class="btn btn-outline" href="/students">Open Student List</a>
+      <button class="btn btn-warning" onclick="sendAbsences()">Send absence alerts now</button>
+    </div>
+    <div id="msg"></div>
+  </div>
+</div>
+
+<div class="card" style="margin-top:18px">
+  <div class="section-title"><h2>Accuracy approach</h2></div>
+  <div class="grid grid-3">
+    <div><strong>Multiple samples</strong><p class="muted small">10 quality-checked registration frames are required.</p></div>
+    <div><strong>Multi-frame scan</strong><p class="muted small">Attendance checks several webcam frames for consistency.</p></div>
+    <div><strong>Conservative matching</strong><p class="muted small">Uncertain matches are rejected instead of guessed.</p></div>
+  </div>
+</div>
+<script>
+async function sendAbsences(){
+ const r=await fetch('/api/admin/send-absence-alerts',{method:'POST'});
+ const d=await r.json(); const e=document.getElementById('msg');
+ e.className='message '+(r.ok?'ok':'err');
+ e.textContent=r.ok?`Processed ${d.processed||0} absence record(s).`:(d.error||'Unable to send alerts.');
+}
+</script>
+{% endblock %}

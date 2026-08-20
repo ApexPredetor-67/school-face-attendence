@@ -1,0 +1,43 @@
+<svg width="1200" height="330" viewBox="0 0 1200 330" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1200" y2="330" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0B1220"/>
+      <stop offset="0.5" stop-color="#172554"/>
+      <stop offset="1" stop-color="#0F766E"/>
+      <animate attributeName="x1" values="0;400;0" dur="8s" repeatCount="indefinite"/>
+    </linearGradient>
+    <linearGradient id="glow" x1="0" y1="0" x2="1200" y2="0" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#60A5FA"/>
+      <stop offset="0.45" stop-color="#A78BFA"/>
+      <stop offset="1" stop-color="#34D399"/>
+      <animate attributeName="x2" values="600;1200;600" dur="6s" repeatCount="indefinite"/>
+    </linearGradient>
+    <filter id="blur" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="28"/>
+    </filter>
+  </defs>
+
+  <rect width="1200" height="330" rx="30" fill="url(#bg)"/>
+  <circle cx="150" cy="80" r="90" fill="#60A5FA" opacity="0.12" filter="url(#blur)">
+    <animate attributeName="cx" values="150;310;150" dur="7s" repeatCount="indefinite"/>
+  </circle>
+  <circle cx="1040" cy="250" r="110" fill="#34D399" opacity="0.10" filter="url(#blur)">
+    <animate attributeName="cy" values="250;180;250" dur="6s" repeatCount="indefinite"/>
+  </circle>
+
+  <text x="600" y="120" text-anchor="middle" fill="white" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="22" font-weight="600" opacity="0.86">
+    AI • SCHOOL ATTENDANCE • REAL-TIME VERIFICATION
+  </text>
+  <text x="600" y="182" text-anchor="middle" fill="white" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="48" font-weight="800">
+    Smart School Attendance
+    <animate attributeName="opacity" values="0.72;1;0.72" dur="3.2s" repeatCount="indefinite"/>
+  </text>
+  <text x="600" y="228" text-anchor="middle" fill="#D1FAE5" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="20" font-weight="500">
+    Face recognition • Teacher portal • School calendar • Audit trail
+  </text>
+
+  <rect x="110" y="270" width="980" height="4" rx="2" fill="#FFFFFF" opacity="0.12"/>
+  <rect x="110" y="270" width="220" height="4" rx="2" fill="url(#glow)">
+    <animate attributeName="x" values="110;760;110" dur="4s" repeatCount="indefinite"/>
+  </rect>
+</svg>

@@ -1,0 +1,180 @@
+{% extends "base.html" %}
+{% block title %}Register Student{% endblock %}
+{% block crumb %}Register Student{% endblock %}
+{% set active_nav='register' %}
+{% block content %}
+<div class="page-head"><div><h1>Register Student</h1><p>The student is created only after the five required details and successful face training are complete.</p></div><span class="badge badge-yellow">Face required</span></div>
+<div class="steps"><div id="s1" class="step on"></div><div id="s2" class="step"></div><div id="s3" class="step"></div></div>
+<div class="capture-layout">
+  <div class="card">
+    <div id="detailsPane">
+      <div class="section-title"><h2>Student information</h2><span class="badge badge-yellow">5 fields</span></div>
+      <form id="registrationForm">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <div class="form-grid">
+          <div class="form-group"><label>Admission number *</label><input name="admission_number" maxlength="50" required></div>
+          <div class="form-group"><label>Roll number *</label><input name="roll_number" maxlength="30" required></div>
+        </div>
+        <div class="form-grid">
+          <div class="form-group"><label>Full name *</label><input name="name" maxlength="120" required pattern="[A-Z][A-Z .'\-]*" title="Enter the full name in CAPITAL LETTERS"></div>
+          <div class="form-group"><label>Class *</label><input name="class_name" maxlength="30" placeholder="e.g. X" required pattern="[A-Z0-9]+" title="Class must use CAPITAL LETTERS or numbers"></div>
+        </div>
+        <div class="form-group"><label>Section *</label><input name="section" maxlength="10" placeholder="e.g. A" required pattern="[A-Z0-9]+" title="Section must use CAPITAL LETTERS or numbers"></div>
+        <button class="btn btn-primary" type="submit">Continue to Face Capture →</button>
+      </form>
+      <div id="detailsMsg"></div>
+    </div>
+
+    <div id="capturePane" style="display:none">
+      <div class="section-title"><h2>Face capture</h2><span id="counterBadge" class="badge badge-yellow">0 / 12</span></div>
+      <div class="message info">Exactly one face must be visible. The original face-quality checks are preserved: framing, brightness, blur and face size. Take each sample from a slightly different angle.</div>
+      <div class="camera-stage"><video id="video" autoplay playsinline muted></video><div id="cameraState" class="camera-state">Starting camera…</div></div>
+      <div class="actions" style="margin-top:12px"><button id="captureBtn" class="btn btn-success" type="button" disabled>Capture Good Frame</button><button id="finishBtn" class="btn btn-primary" type="button" disabled>Complete Registration</button><button id="cancelBtn" class="btn btn-light" type="button">Cancel</button></div>
+      <div id="captureMsg"></div>
+    </div>
+
+    <div id="done" style="display:none"><h2>✓ Registration complete</h2><p class="muted" id="doneText"></p><div class="actions"><a class="btn btn-success" href="/admin/students">View Students</a><a class="btn btn-outline" href="/admin/register">Register Another</a></div></div>
+  </div>
+
+  <div class="card">
+    <div class="section-title"><h2>Capture checklist</h2></div>
+    <ol class="muted" style="line-height:1.9;padding-left:20px"><li>Good, even lighting.</li><li>Only the student in the frame.</li><li>Face centered and fully visible.</li><li>Use slightly different angles. If the prompt says the view is repeating, turn your head a little left/right or move slightly.</li><li>At least 10 valid samples are required; 12 slots are available.</li></ol>
+    <div class="card" style="background:#f8f9fc;text-align:center"><div class="capture-count" id="count">0</div><div class="muted">valid captures</div></div>
+  </div>
+</div>
+
+<script>
+let token = null, stream = null, count = 0, samePoseStreak = 0, lastPose = null, tipIndex = 0;
+const $ = id => document.getElementById(id);
+const show = (el, text, kind = 'ok') => { el.className = 'message ' + kind; el.textContent = text; };
+const uppercaseFields = ['name', 'class_name', 'section'];
+uppercaseFields.forEach(name => {
+  const input = document.querySelector(`[name="${name}"]`);
+  input?.addEventListener('input', () => { input.value = input.value.toUpperCase(); });
+});
+function poseDistance(a, b) {
+  if (!a || !b) return Infinity;
+  return Math.abs((a.tilt ?? 0) - (b.tilt ?? 0)) * 1.6
+    + Math.abs((a.nose_x ?? 0) - (b.nose_x ?? 0))
+    + Math.abs((a.nose_y ?? 0) - (b.nose_y ?? 0)) * 0.7
+    + Math.abs((a.cx ?? 0) - (b.cx ?? 0)) * 0.45
+    + Math.abs((a.cy ?? 0) - (b.cy ?? 0)) * 0.35
+    + Math.abs((a.size ?? 0) - (b.size ?? 0)) * 0.8;
+}
+function poseTip() {
+  const tips = [
+    'Turn your head slightly to the left for the next frame.',
+    'Now turn slightly to the right for the next frame.',
+    'Look a little upward for the next frame.',
+    'Look a little downward for the next frame.',
+    'Try a small head tilt before the next capture.'
+  ];
+  const tip = tips[tipIndex % tips.length];
+  tipIndex += 1;
+  return tip;
+}
+
+function waitForVideoReady(timeout = 8000) {
+  const video = $('video');
+  if (video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA && video.videoWidth && video.videoHeight) return Promise.resolve();
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('Camera did not finish starting. Please try again.')), timeout);
+    video.addEventListener('loadeddata', () => { clearTimeout(timer); resolve(); }, {once:true});
+  });
+}
+
+async function startCamera() {
+  if (!navigator.mediaDevices?.getUserMedia) throw new Error('This browser does not support camera access.');
+  stream = await navigator.mediaDevices.getUserMedia({video:{width:{ideal:640},height:{ideal:480},facingMode:'user'}, audio:false});
+  $('video').srcObject = stream;
+  await $('video').play();
+  await waitForVideoReady();
+  $('cameraState').textContent = 'Camera ready';
+  $('cameraState').className = 'camera-state ready';
+  $('captureBtn').disabled = false;
+}
+
+$('registrationForm').addEventListener('submit', async event => {
+  event.preventDefault();
+  const button = event.submitter;
+  if (button) button.disabled = true;
+  try {
+    const r = await apiFetch('/admin/register', {method:'POST', body:new URLSearchParams(new FormData(event.target))});
+    const d = await readJSON(r);
+    if (!r.ok) return show($('detailsMsg'), d.error || 'Unable to start registration.', 'err');
+    token = d.registration_token;
+    $('detailsPane').style.display = 'none';
+    $('capturePane').style.display = 'block';
+    $('s2').classList.add('on');
+    try {
+      await startCamera();
+    } catch (error) {
+      $('cameraState').textContent = 'Camera unavailable';
+      $('cameraState').className = 'camera-state error';
+      show($('captureMsg'), 'Camera access is required: ' + error.message, 'err');
+    }
+  } finally {
+    if (button && !token) button.disabled = false;
+  }
+});
+
+$('captureBtn').addEventListener('click', async () => {
+  if (!stream) return show($('captureMsg'), 'Camera access is required.', 'err');
+  const video = $('video');
+  if (!video.videoWidth || !video.videoHeight) return show($('captureMsg'), 'Camera is still starting. Please wait a moment.', 'info');
+  const canvas = document.createElement('canvas');
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+  canvas.getContext('2d').drawImage(video, 0, 0);
+  $('captureBtn').disabled = true;
+  try {
+    const r = await apiFetch('/api/register/capture/' + encodeURIComponent(token), {method:'POST', body:JSON.stringify({image:canvas.toDataURL('image/jpeg', .94)})});
+    const d = await readJSON(r);
+    if (!r.ok) return show($('captureMsg'), d.error || 'Frame rejected.', 'err');
+    count = d.frame_count;
+    $('count').textContent = count;
+    $('counterBadge').textContent = count + ' / 12';
+    if (count >= 10) $('finishBtn').disabled = false;
+
+    const currentPose = d.pose_signature || null;
+    const repeated = poseDistance(currentPose, lastPose) < 0.055;
+    samePoseStreak = repeated ? samePoseStreak + 1 : 0;
+    lastPose = currentPose;
+
+    if (samePoseStreak >= 2) {
+      show($('captureMsg'), 'Nice frame. You have taken a few very similar views. ' + poseTip(), 'info');
+    } else {
+      show($('captureMsg'), 'Good frame captured. Change the angle slightly for the next sample.', 'ok');
+    }
+  } finally {
+    $('captureBtn').disabled = false;
+  }
+});
+
+$('finishBtn').addEventListener('click', async () => {
+  if (count < 10) return;
+  $('finishBtn').disabled = true;
+  show($('captureMsg'), 'Training the face model…', 'info');
+  const r = await apiFetch('/api/register/complete/' + encodeURIComponent(token), {method:'POST'});
+  const d = await readJSON(r);
+  if (!r.ok) {
+    show($('captureMsg'), d.error || 'Training failed.', 'err');
+    $('finishBtn').disabled = false;
+    return;
+  }
+  if (stream) stream.getTracks().forEach(track => track.stop());
+  $('capturePane').style.display = 'none';
+  $('done').style.display = 'block';
+  $('s3').classList.add('on');
+  $('doneText').textContent = d.message + ' ' + d.valid_frames + ' high-quality samples were stored.';
+});
+
+$('cancelBtn').addEventListener('click', async () => {
+  await apiFetch('/api/register/cancel', {method:'POST'});
+  if (stream) stream.getTracks().forEach(track => track.stop());
+  location.reload();
+});
+
+window.addEventListener('beforeunload', () => stream?.getTracks().forEach(track => track.stop()));
+</script>
+{% endblock %}

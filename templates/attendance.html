@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}Attendance Scanner{% endblock %}
+{% block public_content %}
+<div class="home-shell">
+<header class="home-top"><div class="home-brand"><img class="brand-icon" src="{{ url_for('static', filename='branding/dav-ps-kkp-logo.png') }}" alt="DAV PS KKP logo"><div><span class="brand-school">DAV PS KKP</span><span class="brand-product">Student Attendance</span></div></div><a class="btn btn-light" href="/">Home</a></header>
+<main class="home-main" style="max-width:900px">
+  <div class="page-head">
+    <div><h1>Attendance Scanner</h1><p>Face recognition verifies multiple webcam frames before creating today's attendance record.</p></div>
+    <span id="dayBadge" class="badge badge-yellow">Checking calendar…</span>
+  </div>
+  <div class="card">
+    <video id="video" autoplay playsinline></video>
+    <div class="actions" style="margin-top:14px"><button id="scan" class="btn btn-primary" style="flex:1" type="button">◉ Scan & Mark Attendance</button></div>
+    <div id="message"></div>
+    <div id="progress" class="progress" style="margin-top:12px;display:none"><div style="width:0"></div></div>
+  </div>
+  <div class="card" style="margin-top:18px">
+    <div class="grid grid-3">
+      <div><strong>1. One face</strong><p class="muted small">Only one person may be visible.</p></div>
+      <div><strong>2. Multi-frame</strong><p class="muted small">Several frames are checked for consistency.</p></div>
+      <div><strong>3. Conservative</strong><p class="muted small">Uncertain matches are rejected.</p></div>
+    </div>
+  </div>
+</main></div>
+<script>
+(function(){
+ let stream=null,scanning=false;
+ const video=document.getElementById('video'),btn=document.getElementById('scan'),msg=document.getElementById('message'),bar=document.querySelector('#progress div'),dayBadge=document.getElementById('dayBadge');
+ const show=(text,kind)=>{msg.className='message '+kind;msg.textContent=text};
+ const sleep=m=>new Promise(r=>setTimeout(r,m));
+ async function checkDay(){
+  try{
+   const r=await fetch('/api/school-day');const x=await r.json();
+   if(x?.is_working){dayBadge.className='badge badge-green';dayBadge.textContent='Working day'}
+   else{dayBadge.className='badge badge-gray';dayBadge.textContent='Non-working day';btn.disabled=true;show('Attendance is disabled today because the school calendar marks today as non-working.','info')}
+  }catch(e){dayBadge.className='badge badge-red';dayBadge.textContent='Calendar unavailable';show('Calendar could not be checked. Attendance is disabled until the server is reachable.','err');btn.disabled=true}
+ }
+ async function start(){
+  try{stream=await navigator.mediaDevices.getUserMedia({video:{width:{ideal:640},height:{ideal:480},facingMode:'user'}});video.srcObject=stream;await checkDay()}
+  catch(e){show('Camera access is required for attendance: '+e.message,'err');btn.disabled=true}
+ }
+ async function capture(){const c=document.createElement('canvas');c.width=video.videoWidth;c.height=video.videoHeight;c.getContext('2d').drawImage(video,0,0);return c.toDataURL('image/jpeg',.94)}
+ async function scan(){
+  if(scanning||!stream)return;scanning=true;btn.disabled=true;document.getElementById('progress').style.display='block';show('Collecting 7 verification frames…','info');
+  const images=[];for(let i=0;i<7;i++){images.push(await capture());bar.style.width=((i+1)*100/7)+'%';await sleep(160)}
+  try{
+   const r=await fetch('/api/mark-attendance',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({images})});
+   const d=await r.json();if(r.ok){let text=d.message;if(d.already_marked)text+=' No duplicate record was created.';else text+=` Verified across ${d.votes}/${d.frames_used} valid frames.`;show(text,'ok')}
+   else show(d.error||'Recognition failed','err')
+  }catch(e){show('Server error: '+e.message,'err')}
+  finally{scanning=false;btn.disabled=false;setTimeout(()=>{bar.style.width='0';document.getElementById('progress').style.display='none'},700);await checkDay()}
+ }
+ btn.addEventListener('click',scan);start();
+})();
+</script>
+{% endblock %}

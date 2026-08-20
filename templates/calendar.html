@@ -1,0 +1,259 @@
+{% extends "base.html" %}
+{% block title %}School Calendar{% endblock %}
+{% block crumb %}School Calendar{% endblock %}
+{% set active_nav='calendar' %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>School Calendar</h1>
+    <p>{% if calendar_readonly %}<strong>Read-only teacher view.</strong>{% else %}<strong>Admin control.</strong> Set working days, holidays and school-calendar overrides.{% endif %}</p>
+  </div>
+  <div class="actions">
+    <button class="btn btn-outline" id="prevBtn" type="button">←</button>
+    <button class="btn btn-light" id="todayBtn" type="button">Today</button>
+    <strong id="monthTitle" style="min-width:150px;text-align:center"></strong>
+    <button class="btn btn-outline" id="nextBtn" type="button">→</button>
+  </div>
+</div>
+
+<div class="card">
+  <div class="section-title">
+    <div class="legend"><span><i class="dot working"></i> Working</span><span><i class="dot off"></i> Non-working</span><span><i class="dot override"></i> Override</span></div>
+    <span id="loadStatus" class="small muted">Loading…</span>
+  </div>
+  <div class="calendar-head"><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span></div>
+  <div id="calendar" class="calendar-grid"></div>
+</div>
+
+{% if not calendar_readonly %}
+<div class="card calendar-import-card" style="margin-top:18px">
+  <div class="section-title">
+    <div><h2>Import tentative school calendar</h2><p class="small muted">Upload a text-readable PDF or a clear calendar image. Detected dates are classified automatically and shown for review before they are saved.</p></div>
+    <span class="badge badge-blue">PDF / image</span>
+  </div>
+  <div class="calendar-import-grid">
+    <div>
+      <input id="calendarFile" type="file" accept=".pdf,.png,.jpg,.jpeg,.webp,application/pdf,image/png,image/jpeg,image/webp">
+      <div class="small muted" style="margin-top:7px">Best results: dates with words such as “holiday”, “working day”, “closed” or “school day” nearby.</div>
+    </div>
+    <div class="actions">
+      <button class="btn btn-primary" id="importBtn" type="button">Read Calendar</button>
+      <button class="btn btn-outline" id="applyImport" type="button" disabled>Apply detected dates</button>
+    </div>
+  </div>
+  <div id="importMsg"></div>
+  <div id="importSummary" class="small muted" style="margin-top:10px"></div>
+  <div id="importPreview" class="table-wrap" style="display:none;margin-top:12px"><table><thead><tr><th>Date</th><th>Type</th><th>Reason</th></tr></thead><tbody id="importRows"></tbody></table></div>
+</div>
+
+<div id="editCard" class="card" style="display:none;margin-top:18px">
+  <div class="section-title"><h2>Edit selected date</h2><button class="btn btn-light" id="closeEdit" type="button">Close</button></div>
+  <p id="selectedDate" class="muted"></p>
+  <div class="form-grid">
+    <div class="form-group"><label>Day type</label><select id="dayType"><option value="true">Working day</option><option value="false">Non-working / holiday</option></select></div>
+    <div class="form-group"><label>Reason</label><input id="reason" maxlength="255"></div>
+  </div>
+  <div class="actions"><button class="btn btn-primary" id="saveDate" type="button">Save date</button><button class="btn btn-light" id="resetDate" type="button">Reset to weekly default</button></div>
+  <div id="editMsg"></div>
+</div>
+{% endif %}
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const cal = $('calendar');
+  const title = $('monthTitle');
+  const status = $('loadStatus');
+  const isAdmin = {{ 'false' if calendar_readonly else 'true' }};
+  const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  let current = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+  const cache = new Map();
+  let selected = '';
+  let activeLoad = null;
+  let importedDates = [];
+
+  function key(y, m) { return `${y}-${m}`; }
+  function dateKey(y, m, d) { return `${y}-${String(m + 1).padStart(2,'0')}-${String(d).padStart(2,'0')}`; }
+
+  async function getMonth(year, month, signal) {
+    const cacheKey = key(year, month);
+    if (cache.has(cacheKey)) return cache.get(cacheKey);
+    const response = await apiFetch(`/api/calendar?year=${year}&month=${month}`, signal ? {signal} : {});
+    const data = await readJSON(response);
+    if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
+    cache.set(cacheKey, data);
+    return data;
+  }
+
+  async function prefetch(year, month) {
+    try { await getMonth(year, month); } catch (_) {}
+  }
+
+  async function load() {
+    const y = current.getFullYear();
+    const m = current.getMonth() + 1;
+    title.textContent = `${months[current.getMonth()]} ${y}`;
+    status.textContent = 'Loading…';
+    if (activeLoad) activeLoad.abort();
+    activeLoad = new AbortController();
+    try {
+      const data = await getMonth(y, m, activeLoad.signal);
+      render(data);
+      status.textContent = `${data.filter(x => x.is_working).length} working day(s)`;
+      // Keep adjacent months warm without delaying the visible calendar.
+      prefetch(m === 1 ? y - 1 : y, m === 1 ? 12 : m - 1);
+      prefetch(m === 12 ? y + 1 : y, m === 12 ? 1 : m + 1);
+    } catch (error) {
+      if (error?.name === 'AbortError') return;
+      cal.innerHTML = `<div class="empty" style="grid-column:1/-1">${window.escapeHtml(error.message)}</div>`;
+      status.textContent = 'Unavailable';
+    }
+  }
+
+  function render(data) {
+    const map = Object.fromEntries(data.map(x => [x.date, x]));
+    const y = current.getFullYear();
+    const m = current.getMonth();
+    const first = new Date(y, m, 1);
+    const offset = (first.getDay() + 6) % 7;
+    const total = new Date(y, m + 1, 0).getDate();
+    const now = new Date();
+    const todayKey = dateKey(now.getFullYear(), now.getMonth(), now.getDate());
+    let html = '';
+    for (let i = 0; i < offset; i++) html += '<div class="cal-day blank"></div>';
+    for (let d = 1; d <= total; d++) {
+      const date = dateKey(y, m, d);
+      const item = map[date];
+      html += `<button class="cal-day ${item?.is_working ? 'working' : 'off'} ${item?.override ? 'has-override' : ''} ${date === todayKey ? 'today' : ''}" data-date="${date}" ${isAdmin ? '' : 'disabled'}>`
+        + `<span class="cal-num">${d}</span>`
+        + `<span class="badge ${item?.is_working ? 'badge-green' : 'badge-gray'}">${item?.is_working ? 'Working' : 'Off'}</span>`
+        + `${item?.override ? '<span class="override-label">Override</span>' : ''}`
+        + `${item?.reason ? `<small>${window.escapeHtml(item.reason)}</small>` : ''}`
+        + `</button>`;
+    }
+    cal.innerHTML = html;
+    if (isAdmin) cal.querySelectorAll('[data-date]').forEach(button => button.onclick = () => select(button.dataset.date));
+  }
+
+  function select(date) {
+    selected = date;
+    const y = current.getFullYear();
+    const m = current.getMonth() + 1;
+    const data = cache.get(key(y, m)) || [];
+    const item = data.find(x => x.date === date) || {};
+    $('selectedDate').textContent = date;
+    $('dayType').value = String(Boolean(item.is_working));
+    $('reason').value = item.reason || '';
+    $('editCard').style.display = 'block';
+    $('editCard').scrollIntoView({behavior:'smooth', block:'nearest'});
+  }
+
+  async function mutate(url, body) {
+    const response = await apiFetch(url, {method:'POST', body:JSON.stringify(body)});
+    const data = await readJSON(response);
+    const message = $('editMsg');
+    message.className = 'message ' + (response.ok ? 'ok' : 'err');
+    message.textContent = data.message || data.error || `HTTP ${response.status}`;
+    if (response.ok) {
+      cache.clear();
+      await load();
+    }
+  }
+
+  if (isAdmin) {
+    $('saveDate').onclick = () => mutate('/api/calendar', {date:selected, is_working:$('dayType').value === 'true', reason:$('reason').value});
+    $('resetDate').onclick = () => mutate('/api/calendar/reset', {date:selected});
+    $('closeEdit').onclick = () => $('editCard').style.display = 'none';
+
+    async function loadImageOCR(file) {
+      if (!window.Tesseract) {
+        await new Promise((resolve, reject) => {
+          const script = document.createElement('script');
+          script.src = 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js';
+          script.onload = resolve;
+          script.onerror = () => reject(new Error('The image-reading helper could not be loaded. Use a PDF calendar or try again.'));
+          document.head.appendChild(script);
+        });
+      }
+
+      const worker = await Tesseract.createWorker('eng', 1, {
+        logger: message => {
+          if (message?.status === 'recognizing text' && typeof message.progress === 'number') {
+            $('importMsg').textContent = `Reading the calendar image… ${Math.round(message.progress * 100)}%`;
+          }
+        },
+      });
+      try {
+        const result = await worker.recognize(file);
+        return result.data.text || '';
+      } finally {
+        await worker.terminate();
+      }
+    }
+
+    $('importBtn').onclick = async () => {
+      const file = $('calendarFile').files[0];
+      if (!file) {
+        $('importMsg').className = 'message err';
+        $('importMsg').textContent = 'Choose a school calendar PDF or image first.';
+        return;
+      }
+      $('importBtn').disabled = true;
+      $('applyImport').disabled = true;
+      $('importMsg').className = 'message info';
+      $('importMsg').textContent = 'Reading the school calendar…';
+      const form = new FormData();
+      try {
+        if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
+          form.append('calendar_file', file);
+        } else {
+          const textValue = await loadImageOCR(file);
+          if (!textValue.trim()) throw new Error('No text could be read from that calendar image. Try a clearer image or use the PDF version.');
+          form.append('calendar_text', textValue);
+        }
+        const response = await apiFetch('/api/calendar/import', {method:'POST', body:form});
+        const data = await readJSON(response);
+        if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
+        importedDates = data.dates || [];
+        $('importSummary').textContent = `${data.working_count} working date(s) and ${data.non_working_count} non-working date(s) detected.`;
+        $('importRows').innerHTML = importedDates.map(item => `<tr><td>${window.escapeHtml(item.date)}</td><td><span class="badge ${item.is_working ? 'badge-green' : 'badge-gray'}">${item.is_working ? 'Working' : 'Non-working'}</span></td><td>${window.escapeHtml(item.reason)}</td></tr>`).join('');
+        $('importPreview').style.display = 'block';
+        $('applyImport').disabled = !importedDates.length;
+        $('importMsg').className = 'message ok';
+        $('importMsg').textContent = 'Calendar read successfully. Review the detected dates before applying them.';
+      } catch (error) {
+        $('importMsg').className = 'message err';
+        $('importMsg').textContent = error.message;
+      } finally {
+        $('importBtn').disabled = false;
+      }
+    };
+
+    $('applyImport').onclick = async () => {
+      if (!importedDates.length) return;
+      $('applyImport').disabled = true;
+      $('importMsg').className = 'message info';
+      $('importMsg').textContent = 'Saving detected school-calendar dates…';
+      try {
+        const response = await apiFetch('/api/calendar/import/apply', {method:'POST', body:JSON.stringify({dates:importedDates})});
+        const data = await readJSON(response);
+        if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
+        $('importMsg').className = 'message ok';
+        $('importMsg').textContent = data.message;
+        cache.clear();
+        await load();
+      } catch (error) {
+        $('importMsg').className = 'message err';
+        $('importMsg').textContent = error.message;
+        $('applyImport').disabled = false;
+      }
+    };
+  }
+
+  $('prevBtn').onclick = () => { current = new Date(current.getFullYear(), current.getMonth() - 1, 1); load(); };
+  $('nextBtn').onclick = () => { current = new Date(current.getFullYear(), current.getMonth() + 1, 1); load(); };
+  $('todayBtn').onclick = () => { const d = new Date(); current = new Date(d.getFullYear(), d.getMonth(), 1); load(); };
+  load();
+})();
+</script>
+{% endblock %}

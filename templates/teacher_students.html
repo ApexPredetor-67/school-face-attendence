@@ -1,0 +1,250 @@
+{% extends "base.html" %}
+
+{% block title %}Students{% endblock %}
+{% block crumb %}Students{% endblock %}
+
+{% block content %}
+
+<div class="page-head">
+  <div>
+    <h1>Students</h1>
+    <p>
+      View the attendance register for your assigned students.
+    </p>
+  </div>
+</div>
+
+<div class="card">
+
+  <div class="section-title">
+    <div>
+      <h2>Attendance Register</h2>
+      <div class="muted small">
+        Teachers have read-only attendance access.
+      </div>
+    </div>
+
+    <div class="toolbar-actions no-print">
+      <button
+        class="btn btn-outline"
+        type="button"
+        onclick="window.print()"
+      >
+        🖨 Print
+      </button>
+
+      <a
+        id="pdfBtn"
+        class="btn btn-outline"
+        href="#"
+      >
+        PDF
+      </a>
+
+      <a
+        id="excelBtn"
+        class="btn btn-primary"
+        href="#"
+      >
+        Excel
+      </a>
+    </div>
+  </div>
+
+  <div class="form-group no-print">
+    <label for="date">
+      Date
+    </label>
+
+    <input
+      type="date"
+      id="date"
+    >
+  </div>
+
+  <div class="table-wrap">
+
+    <table>
+
+      <thead>
+        <tr>
+          <th>Admission Number</th>
+          <th>Roll Number</th>
+          <th>Name</th>
+          <th>Attendance</th>
+          <th>Time</th>
+        </tr>
+      </thead>
+
+      <tbody id="rows">
+        <tr>
+          <td
+            colspan="5"
+            class="empty"
+          >
+            Loading…
+          </td>
+        </tr>
+      </tbody>
+
+    </table>
+
+  </div>
+
+</div>
+
+<script>
+const dateEl =
+  document.getElementById("date");
+
+const rowsEl =
+  document.getElementById("rows");
+
+const pdfBtn =
+  document.getElementById("pdfBtn");
+
+const excelBtn =
+  document.getElementById("excelBtn");
+
+dateEl.value =
+  new Date().toISOString().slice(0, 10);
+
+function esc(value) {
+  return String(value ?? "").replace(
+    /[&<>"']/g,
+    m => ({
+      "&": "&amp;",
+      "<": "&lt;",
+      ">": "&gt;",
+      '"': "&quot;",
+      "'": "&#039;"
+    }[m])
+  );
+}
+
+function links() {
+  const query =
+    `?date=${encodeURIComponent(dateEl.value)}`;
+
+  pdfBtn.href =
+    "/teacher/students/export.pdf" +
+    query;
+
+  excelBtn.href =
+    "/teacher/students/export.xlsx" +
+    query;
+}
+
+async function load() {
+  links();
+
+  rowsEl.innerHTML = `
+    <tr>
+      <td colspan="5" class="empty">
+        Loading…
+      </td>
+    </tr>
+  `;
+
+  const response = await fetch(
+    "/api/teacher/students?date=" +
+    encodeURIComponent(
+      dateEl.value
+    )
+  );
+
+  const data =
+    await response.json();
+
+  if (!response.ok) {
+    rowsEl.innerHTML = `
+      <tr>
+        <td
+          colspan="5"
+          class="empty"
+        >
+          ${esc(
+            data.error ||
+            "Unable to load students"
+          )}
+        </td>
+      </tr>
+    `;
+
+    return;
+  }
+
+  if (!data.students.length) {
+    rowsEl.innerHTML = `
+      <tr>
+        <td
+          colspan="5"
+          class="empty"
+        >
+          No students assigned.
+        </td>
+      </tr>
+    `;
+
+    return;
+  }
+
+  rowsEl.innerHTML =
+    data.students.map(student => {
+
+      const present =
+        student.attendance === "Present";
+
+      const late =
+        student.attendance === "Late";
+
+      return `
+        <tr>
+          <td>
+            ${esc(
+              student.admission_number
+            )}
+          </td>
+
+          <td>
+            ${esc(
+              student.roll_number
+            )}
+          </td>
+
+          <td>
+            <strong>
+              ${esc(student.name)}
+            </strong>
+          </td>
+
+          <td>
+            <span class="badge ${
+              present
+                ? "badge-green"
+                : late
+                  ? "badge-yellow"
+                  : "badge-gray"
+            }">
+              ${esc(student.attendance)}
+            </span>
+          </td>
+
+          <td>
+            ${esc(student.time_in)}
+          </td>
+        </tr>
+      `;
+
+    }).join("");
+}
+
+dateEl.addEventListener(
+  "change",
+  load
+);
+
+load();
+</script>
+
+{% endblock %}

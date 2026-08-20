@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block crumb %}Dashboard{% endblock %}
+{% set active_nav='dashboard' %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Dashboard</h1>
+    <p>Manage students, teachers, attendance and the school calendar.</p>
+  </div>
+  <div class="actions">
+    <a class="btn btn-primary" href="/scan">◉ Scan Attendance</a>
+    <a class="btn btn-outline" href="/admin/register">＋ Register Student</a>
+    <a class="btn btn-warning" href="/admin/calendar">▦ School Calendar</a>
+  </div>
+</div>
+
+<div class="grid grid-3 dashboard-summary">
+  <div class="card stat-card">
+    <div class="stat-label">TODAY</div>
+    <div class="stat" style="font-size:22px">{{ "Working day" if working_today else "Non-working day" }}</div>
+    <div class="stat-icon">▦</div>
+  </div>
+  <div class="card stat-card">
+    <div class="stat-label">TEACHERS</div>
+    <div class="stat">{{ teacher_count }}</div>
+    <div class="stat-icon">♙</div>
+  </div>
+  <div class="card stat-card">
+    <div class="stat-label">CLASS GROUPS</div>
+    <div class="stat">{{ class_count }}</div>
+    <div class="stat-icon">▤</div>
+  </div>
+</div>
+
+<div class="card school-time-card" style="margin-top:18px">
+  <div>
+    <div class="section-title">
+      <div>
+        <h2>Attendance Time</h2>
+        <p class="small muted">Test the school attendance time without changing the server clock.</p>
+      </div>
+      <span class="badge {{ 'badge-green' if school_clock_override else 'badge-gray' }}">
+        {{ 'Test time selected' if school_clock_override else 'Live time' }}
+      </span>
+    </div>
+    <div class="message info">07:30–08:29 = Present · 08:30–08:59 = Late · 09:00 onward = Absent</div>
+    <div class="actions" style="margin-top:14px">
+      <a class="btn btn-primary" href="/admin/school-time">Open Attendance Time</a>
+      {% if school_clock_override %}<span class="small muted">Current test time: {{ school_clock_override }}</span>{% endif %}
+    </div>
+  </div>
+  <div class="school-time-side">
+    <div class="school-time-icon">◷</div>
+    <strong>School Time</strong>
+    <span>Use the separate time page for boundary testing.</span>
+  </div>
+</div>
+
+<div class="card" style="margin-top:18px">
+  <div class="section-title">
+    <h2>Quick actions</h2>
+    <span class="badge {{ 'badge-green' if working_today else 'badge-gray' }}">{{ 'Working day' if working_today else 'Non-working day' }}</span>
+  </div>
+  <div class="quick">
+    <a href="/admin/register"><strong>Register Student</strong><span>Student details and face capture</span></a>
+    <a href="/scan"><strong>Mark Attendance</strong><span>Seven-frame face verification</span></a>
+    <a href="/admin/students"><strong>Students</strong><span>Class and section registers</span></a>
+    <a href="/admin/calendar"><strong>School Calendar</strong><span>Working days and holidays</span></a>
+    <a href="/admin/teachers"><strong>Teachers</strong><span>{{ teacher_count }} active account(s)</span></a>
+  </div>
+</div>
+{% endblock %}

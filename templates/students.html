@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Students{% endblock %}
+{% block crumb %}Students{% endblock %}
+{% set active_nav='students' %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Students</h1>
+    <p>Choose a class and section to view attendance.</p>
+  </div>
+  <a class="btn btn-primary" href="/admin/register">＋ Register Student</a>
+</div>
+<div class="card">
+  <div class="empty">Use the Admin Students page to browse classes and daily attendance.</div>
+</div>
+{% endblock %}

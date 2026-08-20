@@ -1,0 +1,157 @@
+{% extends "base.html" %}
+{% block title %}Attendance Time{% endblock %}
+{% block crumb %}Attendance Time{% endblock %}
+{% set active_nav='school_time' %}
+{% block head %}
+<style>
+.school-time-picker{margin-top:18px;padding:18px;border:1px solid var(--line);border-radius:14px;background:#fbfcff}
+.school-time-picker>label{display:block;font-size:11px;font-weight:850;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-bottom:9px}
+.time-picker-row{display:flex;align-items:center;gap:10px}
+.time-picker-icon{width:38px;height:38px;border-radius:11px;background:var(--primary-soft);color:var(--primary);display:grid;place-items:center;font-size:22px;font-weight:800;flex:0 0 auto}
+.time-picker{width:100%;min-height:48px;border:1px solid var(--line);border-radius:12px;background:#fff;padding:0 14px;font-size:22px;font-weight:850;color:var(--ink);letter-spacing:.02em;box-sizing:border-box}
+.time-picker:focus{outline:none;border-color:#8092ee;box-shadow:0 0 0 3px rgba(79,107,225,.12)}
+.time-presets{display:flex;gap:7px;flex-wrap:wrap;margin-top:10px}
+.time-presets .btn{font-size:11px}
+</style>
+{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Attendance Time</h1>
+    <p>Admin-only testing for the school's attendance time boundaries.</p>
+  </div>
+  <a class="btn btn-outline" href="/admin">← Dashboard</a>
+</div>
+
+<div class="grid grid-2 time-test-grid">
+  <div class="card">
+    <div class="section-title">
+      <div>
+        <h2>Attendance timings</h2>
+        <p class="small muted">This test clock is shared across the school system, including admin and teacher student lists.</p>
+      </div>
+      <span id="modeBadge" class="badge {{ 'badge-green' if school_clock_override else 'badge-gray' }}">{{ 'Test time' if school_clock_override else 'Live time' }}</span>
+    </div>
+
+    <div class="time-rule"><span>07:30–08:29</span><strong>Present</strong></div>
+    <div class="time-rule"><span>08:30–08:59</span><strong>Late</strong></div>
+    <div class="time-rule"><span>09:00 onward</span><strong>Absent</strong></div>
+    <div class="time-rule"><span>Before 07:30</span><strong>Attendance not open</strong></div>
+
+    <div class="message info" style="margin-top:18px">The selected time is used by attendance rules and the admin/teacher student lists. Reset to return the whole system to live time.</div>
+
+    <div class="school-time-picker">
+      <label for="timePicker">Choose a test school time</label>
+      <div class="time-picker-row">
+        <span class="time-picker-icon" aria-hidden="true">◷</span>
+        <input id="timePicker" class="time-picker" type="time" step="60" value="{{ school_clock_override or live_time }}" aria-label="Choose school test time">
+      </div>
+      <div class="time-presets">
+        <button class="btn btn-light preset" data-time="07:45" type="button">Present · 07:45</button>
+        <button class="btn btn-light preset" data-time="08:45" type="button">Late · 08:45</button>
+        <button class="btn btn-light preset" data-time="09:15" type="button">Absent · 09:15</button>
+        <button class="btn btn-outline" id="resetBtn" type="button">Use live time</button>
+      </div>
+      <p class="small muted">Pick the exact time you want to test instead of repeatedly nudging the clock minute by minute.</p>
+    </div>
+  </div>
+
+  <div class="card time-display-card">
+    <div class="time-display-label">Selected school time</div>
+    <div id="timeText" class="clock-time">{{ school_clock_override or live_time }}</div>
+    <div id="stateText" class="clock-state">Checking attendance window…</div>
+    <div class="time-strip" aria-hidden="true">
+      <div class="time-strip-fill" id="timeStripFill"></div>
+    </div>
+    <button id="useBtn" class="btn btn-primary" type="button">Use this time</button>
+  </div>
+</div>
+
+<script>
+(() => {
+  const timeText = document.getElementById('timeText');
+  const stateText = document.getElementById('stateText');
+  const modeBadge = document.getElementById('modeBadge');
+  const strip = document.getElementById('timeStripFill');
+  const picker = document.getElementById('timePicker');
+  let current = picker.value || '{{ school_clock_override or live_time }}';
+
+  const pad = n => String(n).padStart(2, '0');
+  const toMinutes = value => {
+    const [h, m] = String(value).split(':').map(Number);
+    return (h * 60) + m;
+  };
+  const display = value => {
+    const mins = toMinutes(value);
+    const h24 = Math.floor(mins / 60);
+    const ap = h24 >= 12 ? 'PM' : 'AM';
+    const h12 = h24 % 12 || 12;
+    return `${pad(h12)}:${pad(mins % 60)} ${ap}`;
+  };
+  const live = () => {
+    const d = new Date();
+    return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  };
+
+  function setMode(test) {
+    modeBadge.textContent = test ? 'Test time' : 'Live time';
+    modeBadge.className = 'badge ' + (test ? 'badge-green' : 'badge-gray');
+  }
+
+  function render() {
+    const mins = toMinutes(current);
+    timeText.textContent = display(current);
+    picker.value = current;
+    if (mins < 450) stateText.textContent = 'Attendance not open yet';
+    else if (mins < 510) stateText.textContent = 'Present window';
+    else if (mins < 540) stateText.textContent = 'Late window';
+    else stateText.textContent = 'Absent window';
+    strip.style.width = `${Math.max(2, Math.min(100, (mins / 1440) * 100))}%`;
+  }
+
+  picker.addEventListener('input', () => {
+    if (!picker.value) return;
+    current = picker.value;
+    setMode(true);
+    render();
+  });
+
+  document.querySelectorAll('.preset').forEach(button => {
+    button.addEventListener('click', () => {
+      current = button.dataset.time;
+      setMode(true);
+      render();
+    });
+  });
+
+  document.getElementById('resetBtn').addEventListener('click', async () => {
+    const response = await apiFetch('/api/admin/clock', {method: 'DELETE'});
+    const data = await readJSON(response);
+    if (!response.ok) {
+      alert(data.error || 'Could not reset the attendance time.');
+      return;
+    }
+    current = data.live_time || live();
+    setMode(false);
+    render();
+  });
+
+  document.getElementById('useBtn').addEventListener('click', async () => {
+    const response = await apiFetch('/api/admin/clock', {
+      method: 'POST',
+      body: JSON.stringify({time: current})
+    });
+    const data = await readJSON(response);
+    if (!response.ok) {
+      alert(data.error || 'Unable to set the attendance time.');
+      return;
+    }
+    current = data.time || current;
+    setMode(true);
+    render();
+  });
+
+  render();
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}Teacher Login{% endblock %}
+{% block head %}
+<style>
+.login-shell{min-height:calc(100vh - 60px);display:grid;place-items:center;padding:42px 18px;position:relative;overflow:hidden}
+.login-shell:before,.login-shell:after{content:"";position:absolute;border-radius:50%;pointer-events:none}
+.login-shell:before{width:360px;height:360px;top:-150px;right:-100px;background:radial-gradient(circle,#dfe6ff 0%,rgba(223,230,255,0) 70%)}
+.login-shell:after{width:380px;height:380px;bottom:-170px;left:-130px;background:radial-gradient(circle,#e8f8f0 0%,rgba(232,248,240,0) 70%)}
+.login-card{width:min(100%,460px);position:relative;z-index:1;padding:30px!important;border-radius:20px!important;background:rgba(255,255,255,.97)!important;box-shadow:0 24px 70px rgba(43,59,96,.12)!important;border-top:4px solid var(--green)!important}
+.login-brand{display:flex;gap:11px;align-items:center;margin-bottom:28px}.login-brand .brand-icon{width:50px;height:50px;flex:0 0 50px;border-radius:12px}.login-brand strong{display:block;font-size:15px}.login-brand small{display:block;color:var(--muted);font-size:11px;margin-top:3px}
+.login-title .eyebrow{font-size:10px;font-weight:900;letter-spacing:.12em;color:var(--green);margin-bottom:7px}.login-title h1{margin:0 0 5px;font-size:29px}.login-title p{margin:0 0 20px;font-size:13px}
+.login-tip{display:flex;gap:10px;padding:12px 13px;border-radius:12px;background:#f5faf7;border:1px solid #dcefe5;margin-bottom:18px}.login-tip>span{color:var(--green);font-size:12px}.login-tip strong{display:block;font-size:11px}.login-tip small{display:block;color:var(--muted);font-size:10px;line-height:1.45;margin-top:3px}
+.login-card input{min-height:45px;background:#fbfcfe}.login-card input:focus{background:#fff}.login-submit{width:100%;min-height:45px;border-radius:11px;font-size:13px;justify-content:space-between}.login-footer{text-align:center;color:#9aa3b1;font-size:10px;margin-top:18px}
+</style>
+{% endblock %}
+{% block content %}
+<div class="login-shell">
+  <div class="login-card">
+    <div class="login-brand"><img class="brand-icon" src="{{ url_for('static', filename='branding/dav-ps-kkp-logo.png') }}" alt="DAV PS KKP logo"><div><strong>DAV PS KKP</strong><small>Student Attendance • Teacher workspace</small></div></div>
+    <div class="login-title">
+      <div class="eyebrow">SECURE ACCESS</div>
+      <h1>Teacher login</h1>
+      <p class="muted">Sign in to view your assigned students and attendance.</p>
+    </div>
+    <div class="login-tip"><span>●</span><div><strong>Teacher account</strong><small>Use the username and password created by your administrator.</small></div></div>
+    {% if error %}<div class="message err">{{ error }}</div>{% endif %}
+    <form method="post" action="{{ url_for('teacher_login') }}" style="margin-top:18px">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      {% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
+      <div class="form-group"><label for="username">Username</label><input id="username" name="username" value="{{ username or '' }}" required autofocus autocomplete="username"></div>
+      <div class="form-group"><label for="password">Password</label><input id="password" type="password" name="password" required autocomplete="current-password"></div>
+      <button class="btn btn-success login-submit" type="submit">Sign in <span>→</span></button>
+    </form>
+    <div class="login-footer">DAV PS KKP • Authorized teachers only</div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}Teacher Dashboard{% endblock %}
+{% block crumb %}My Dashboard{% endblock %}
+{% set active_nav='dashboard' %}
+{% block content %}
+<div class="page-head">
+  <div><h1>My Dashboard</h1><p>Welcome, {{ teacher.name }}.</p></div>
+  <span class="badge {{ 'badge-green' if working_today else 'badge-gray' }}">Today • {{ 'Working day' if working_today else 'Non-working day' }}</span>
+</div>
+
+<div class="grid grid-2">
+  <div class="card stat-card"><div class="stat-label">MY STUDENTS</div><div class="stat">{{ student_count }}</div><div class="stat-icon">♙</div></div>
+  <div class="card stat-card"><div class="stat-label">PRESENT TODAY</div><div class="stat">{{ present_today }}</div><div class="stat-icon">✓</div></div>
+</div>
+
+<div class="card" style="margin-top:18px">
+  <div class="section-title"><h2>Quick links</h2></div>
+  <div class="quick quick-3">
+    <a href="/teacher/students"><strong>My Students</strong><span>Open the attendance register</span></a>
+    <a href="/teacher/calendar"><strong>School Calendar</strong><span>Read-only school calendar</span></a>
+  </div>
+</div>
+
+<div class="grid grid-2" style="margin-top:18px">
+  <div class="card">
+    <h2 style="margin-top:0">School attendance</h2>
+    <div class="message info">Attendance follows the school calendar and the set attendance timings. Teachers cannot change school dates.</div>
+  </div>
+  <div class="card">
+    <h2 style="margin-top:0">Your class</h2>
+    <p class="muted">{% if teacher.class_name %}Class {{ teacher.class_name }}{% if teacher.section %} • Section {{ teacher.section }}{% endif %}{% else %}No class assignment — full register access{% endif %}</p>
+  </div>
+</div>
+{% endblock %}
