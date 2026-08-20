@@ -16,7 +16,7 @@
     <div class="actions" style="margin-top:14px">
       <button id="scan" class="btn btn-success" style="flex:1" disabled>◉ Scan & Mark Attendance</button>
     </div>
-    <div id="message"></div>
+    <div id="message" class="scanner-toast-host" aria-live="polite" aria-atomic="true"></div>
     <div id="progress" style="display:none;height:8px;background:#edf0f5;border-radius:10px;margin-top:12px;overflow:hidden"><div style="height:100%;width:0;background:linear-gradient(90deg,var(--primary),#8495ef);transition:width .15s ease"></div></div>
   </div>
 
@@ -30,6 +30,53 @@
   </div>
 </div>
 
+<style>
+  .scanner-card { position: relative; }
+  .scanner-toast-host {
+    position: fixed;
+    top: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 9999;
+    width: min(560px, calc(100vw - 32px));
+    pointer-events: none;
+  }
+  .scanner-toast {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    box-sizing: border-box;
+    padding: 14px 18px;
+    border-radius: 12px;
+    box-shadow: 0 14px 34px rgba(24, 35, 70, .22);
+    font-weight: 600;
+    line-height: 1.35;
+    opacity: 0;
+    transform: translateY(-18px) scale(.98);
+    transition: opacity .22s ease, transform .22s ease;
+  }
+  .scanner-toast.is-visible {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  .scanner-toast-ok { background: #0f9d58; color: #fff; }
+  .scanner-toast-err { background: #d93025; color: #fff; }
+  .scanner-toast-info { background: #1a73e8; color: #fff; }
+  .scanner-toast-icon {
+    display: inline-grid;
+    place-items: center;
+    width: 25px;
+    height: 25px;
+    flex: 0 0 25px;
+    border-radius: 50%;
+    background: rgba(255,255,255,.18);
+    font-weight: 800;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .scanner-toast { transition: none; }
+  }
+</style>
 <script>
 (() => {
   let stream = null;
@@ -41,7 +88,18 @@
   const day = document.getElementById('dayBadge');
   const cameraState = document.getElementById('cameraState');
   const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
-  const show = (text, kind) => { msg.className = `message ${kind}`; msg.textContent = text; };
+  let toastTimer = null;
+
+  const show = (text, kind, duration = 4200) => {
+    clearTimeout(toastTimer);
+    msg.className = `scanner-toast scanner-toast-${kind} is-visible`;
+    msg.innerHTML = `<span class="scanner-toast-icon">${kind === 'ok' ? '✓' : kind === 'err' ? '!' : 'i'}</span><span>${text}</span>`;
+    if (duration > 0) {
+      toastTimer = setTimeout(() => {
+        msg.classList.remove('is-visible');
+      }, duration);
+    }
+  };
 
   async function checkSchoolDay() {
     try {
