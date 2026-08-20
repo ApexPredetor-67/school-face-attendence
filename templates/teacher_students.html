@@ -61,6 +61,7 @@
       id="date"
     >
   </div>
+  <div class="muted small" id="dateDisplay" style="margin-top:-6px;margin-bottom:12px"></div>
 
   <div class="table-wrap">
 
@@ -108,6 +109,12 @@ const excelBtn =
 
 dateEl.value =
   new Date().toISOString().slice(0, 10);
+
+const dateDisplay = document.getElementById("dateDisplay");
+function refreshDateDisplay() {
+  dateDisplay.textContent = `Showing: ${formatIndianDate(dateEl.value)}`;
+}
+refreshDateDisplay();
 
 function esc(value) {
   return String(value ?? "").replace(
@@ -241,7 +248,7 @@ async function load() {
 
 dateEl.addEventListener(
   "change",
-  load
+  () => { refreshDateDisplay(); load(); }
 );
 
 load();
