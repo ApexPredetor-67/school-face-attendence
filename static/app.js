@@ -42,6 +42,22 @@
       "'": '&#039;'
     }[m]));
 
+  window.formatIndianDate = value => {
+    const raw = String(value ?? '').trim();
+    const match = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (match) return `${match[3]}.${match[2]}.${match[1]}`;
+    const alt = raw.match(/^(\d{2})[\/.](\d{2})[\/.](\d{4})$/);
+    if (alt) return `${alt[1]}.${alt[2]}.${alt[3]}`;
+    return raw;
+  };
+
+  window.formatIndianDateTime = value => {
+    const raw = String(value ?? '').trim();
+    const match = raw.match(/^(\d{4})-(\d{2})-(\d{2})(.*)$/);
+    if (match) return `${match[3]}.${match[2]}.${match[1]}${match[4]}`;
+    return raw.replace(/(\d{2})[\/](\d{2})[\/](\d{4})/, '$1.$2.$3');
+  };
+
   window.readJSON = async response => {
     const text = await response.text();
     try {
