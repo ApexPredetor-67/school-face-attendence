@@ -1487,7 +1487,7 @@ def audit_api():
     limit=min(max(request.args.get("limit",200,type=int),1),500)
     rows=AuditLog.query.order_by(AuditLog.created_at.desc()).limit(limit).all()
     return jsonify([
-        {"timestamp":r.created_at.strftime("%d/%m/%Y %I:%M:%S %p") if r.created_at else "—","actor":r.actor_name,"action":r.action,"description":r.message,"actor_type":r.actor_type,"target_type":r.target_type,"target_id":r.target_id}
+        {"timestamp":r.created_at.strftime("%d.%m.%Y %I:%M:%S %p") if r.created_at else "—","actor":r.actor_name,"action":r.action,"description":r.message,"actor_type":r.actor_type,"target_type":r.target_type,"target_id":r.target_id}
         for r in rows
     ])
 
