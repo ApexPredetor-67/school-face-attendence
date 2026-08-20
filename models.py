@@ -138,7 +138,7 @@ class Student(db.Model):
 
     section = db.Column(
         db.String(10),
-        nullable=False,
+        nullable=True,
         index=True,
     )
 
