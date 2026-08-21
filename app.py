@@ -1411,6 +1411,36 @@ def admin_teachers_api():
     ])
 
 
+def _teacher_assignment_conflict(class_name, section, exclude_teacher_id=None):
+    """Return the active teacher already assigned to this class/section, if any.
+
+    A class + section may have at most one active teacher. For classes such as
+    XI/XII where section is blank, the class itself is the unique assignment.
+    """
+    if not class_name:
+        return None
+
+    query = Teacher.query.filter(
+        Teacher.active.is_(True),
+        func.upper(func.trim(Teacher.class_name)) == class_name.upper().strip(),
+    )
+
+    section_value = (section or "").strip().upper()
+    if section_value:
+        query = query.filter(
+            func.upper(func.trim(Teacher.section)) == section_value
+        )
+    else:
+        query = query.filter(
+            (Teacher.section.is_(None)) | (func.trim(Teacher.section) == "")
+        )
+
+    if exclude_teacher_id is not None:
+        query = query.filter(Teacher.id != exclude_teacher_id)
+
+    return query.order_by(Teacher.id).first()
+
+
 @app.route("/api/admin/teachers", methods=["POST"])
 @admin_required
 def admin_teacher_create():
@@ -1424,6 +1454,15 @@ def admin_teacher_create():
         return json_error("Name, username and an 8+ character password are required")
     if Teacher.query.filter(func.lower(Teacher.username)==username.lower()).first():
         return json_error("Teacher username already exists",409)
+
+    conflict = _teacher_assignment_conflict(class_name, section)
+    if conflict:
+        assignment = class_name if not section else f"{class_name} {section}"
+        return json_error(
+            f"{assignment} is already assigned to teacher {conflict.name}. Only one active teacher can be assigned to a class/section.",
+            409,
+        )
+
     try:
         teacher=Teacher(name=name,username=username,password_hash=generate_password_hash(password),class_name=class_name,section=section,active=True,created_at=now_local())
         db.session.add(teacher)
@@ -1433,7 +1472,7 @@ def admin_teacher_create():
         return jsonify({"message":f"Teacher account created for {name}","id":teacher.id}),201
     except IntegrityError:
         db.session.rollback()
-        return json_error("Could not create teacher. The username may already exist.",409)
+        return json_error("Could not create teacher. The username or class assignment may already exist.",409)
     except SQLAlchemyError:
         db.session.rollback()
         app.logger.exception("Teacher creation database error")
@@ -1446,10 +1485,32 @@ def admin_teacher_update(teacher_id):
     teacher=db.session.get(Teacher,teacher_id)
     if not teacher: return json_error("Teacher not found",404)
     data=request.get_json(silent=True) or {}
+
+    new_class_name = (
+        normalize_class(data.get("class_name")) if data.get("class_name")
+        else teacher.class_name
+    )
+    new_section = (
+        normalize_section(data.get("section")) if data.get("section")
+        else teacher.section
+    )
+    new_active = bool(data["active"]) if "active" in data else bool(teacher.active)
+
+    if new_active:
+        conflict = _teacher_assignment_conflict(
+            new_class_name, new_section, exclude_teacher_id=teacher.id
+        )
+        if conflict:
+            assignment = new_class_name if not new_section else f"{new_class_name} {new_section}"
+            return json_error(
+                f"{assignment} is already assigned to teacher {conflict.name}. Only one active teacher can be assigned to a class/section.",
+                409,
+            )
+
     if "name" in data: teacher.name=normalize_text(data.get("name"),120)
-    if "class_name" in data: teacher.class_name=normalize_class(data.get("class_name")) if data.get("class_name") else None
-    if "section" in data: teacher.section=normalize_section(data.get("section")) if data.get("section") else None
-    if "active" in data: teacher.active=bool(data["active"])
+    if "class_name" in data: teacher.class_name=new_class_name if data.get("class_name") else None
+    if "section" in data: teacher.section=new_section if data.get("section") else None
+    if "active" in data: teacher.active=new_active
     if "password" in data:
         new_password=str(data.get("password") or "")
         if new_password and len(new_password)<8: return json_error("Password must be at least 8 characters")
@@ -1487,7 +1548,7 @@ def audit_api():
     limit=min(max(request.args.get("limit",200,type=int),1),500)
     rows=AuditLog.query.order_by(AuditLog.created_at.desc()).limit(limit).all()
     return jsonify([
-        {"timestamp":r.created_at.strftime("%d.%m.%Y %I:%M:%S %p") if r.created_at else "—","actor":r.actor_name,"action":r.action,"description":r.message,"actor_type":r.actor_type,"target_type":r.target_type,"target_id":r.target_id}
+        {"timestamp":r.created_at.strftime("%d/%m/%Y %I:%M:%S %p") if r.created_at else "—","actor":r.actor_name,"action":r.action,"description":r.message,"actor_type":r.actor_type,"target_type":r.target_type,"target_id":r.target_id}
         for r in rows
     ])
 
