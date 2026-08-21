@@ -2,342 +2,68 @@
 {% block title %}Teacher Accounts{% endblock %}
 {% block crumb %}Teacher Accounts{% endblock %}
 {% block content %}
-
-<div class="page-head">
-  <div>
-    <h1>Teacher Accounts</h1>
-    <p>Create teacher logins and optionally assign a class and section.</p>
-  </div>
-  <a class="btn btn-outline" href="/admin">← Dashboard</a>
-</div>
-
+<div class="page-head"><div><h1>Teacher Accounts</h1><p>Create teacher logins and optionally assign a class and section.</p></div><a class="btn btn-outline" href="/admin">← Dashboard</a></div>
 <div class="grid grid-2">
-
-  <div class="card">
-    <div class="section-title">
-      <h2>Add teacher</h2>
-    </div>
-
-    <form id="form">
-      <div class="form-grid">
-
-        <div class="form-group">
-          <label>Name *</label>
-          <input id="teacherName" required>
-        </div>
-
-        <div class="form-group">
-          <label>Username *</label>
-          <input id="teacherUsername" required autocomplete="username">
-        </div>
-
-        <div class="form-group">
-          <label>Class</label>
-          <input
-            id="teacherClass"
-            placeholder="e.g. VIII"
-            style="text-transform: uppercase;"
-            autocomplete="off"
-          >
-        </div>
-
-        <div class="form-group">
-          <label>Section</label>
-          <input
-            id="teacherSection"
-            placeholder="e.g. A"
-            style="text-transform: uppercase;"
-            autocomplete="off"
-          >
-        </div>
-
-        <div class="form-group">
-          <label>Email</label>
-          <input id="teacherEmail" type="email" autocomplete="email">
-        </div>
-
-        <div class="form-group">
-          <label>Phone</label>
-          <input id="teacherPhone" type="tel">
-        </div>
-
-      </div>
-
-      <div class="form-group">
-        <label>Initial password *</label>
-        <input
-          id="teacherPassword"
-          type="password"
-          minlength="8"
-          required
-          autocomplete="new-password"
-        >
-      </div>
-
-      <button class="btn btn-primary" type="submit" id="createBtn">
-        Create teacher
-      </button>
-
-      <div id="msg"></div>
-    </form>
-  </div>
-
-  <div class="card">
-    <div class="section-title">
-      <h2>Accounts</h2>
-      <button class="btn btn-light" onclick="load()" type="button">
-        Refresh
-      </button>
-    </div>
-
-    <div id="list" class="muted">Loading…</div>
-  </div>
-
+ <div class="card">
+  <div class="section-title"><h2>Add teacher</h2></div>
+  <form id="form">
+   <div class="form-grid">
+    <div class="form-group"><label>Name *</label><input id="teacherName" required></div>
+    <div class="form-group"><label>Username *</label><input id="teacherUsername" required autocomplete="username"></div>
+    <div class="form-group"><label>Class</label><input id="teacherClass" placeholder="e.g. VIII" style="text-transform:uppercase" autocomplete="off"></div>
+    <div class="form-group"><label>Section</label><input id="teacherSection" placeholder="e.g. A" style="text-transform:uppercase" autocomplete="off"></div>
+    <div class="form-group"><label>Email</label><input id="teacherEmail" type="email" autocomplete="email"></div>
+    <div class="form-group"><label>Phone</label><input id="teacherPhone" type="tel"></div>
+   </div>
+   <div class="form-group"><label>Initial password *</label><input id="teacherPassword" type="password" minlength="8" required autocomplete="new-password"></div>
+   <button class="btn btn-primary" type="submit" id="createBtn">Create teacher</button><div id="msg"></div>
+  </form>
+ </div>
+ <div class="card"><div class="section-title"><h2>Accounts</h2><button class="btn btn-light" onclick="load()" type="button">Refresh</button></div><div id="list" class="muted">Loading…</div></div>
 </div>
-
 <script>
-const esc = x => String(x ?? '').replace(
-  /[&<>"']/g,
-  m => ({
-    '&': '&amp;',
-    '<': '&lt;',
-    '>': '&gt;',
-    '"': '&quot;',
-    "'": '&#039;'
-  }[m])
-);
-
-function msg(text, ok = false) {
-  const e = document.getElementById('msg');
-  e.className = 'message ' + (ok ? 'ok' : 'err');
-  e.textContent = text;
+const esc=x=>String(x??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));
+const teacherClass=document.getElementById('teacherClass');
+const teacherSection=document.getElementById('teacherSection');
+function forceUppercase(input){
+  input.addEventListener('input',()=>{
+    const start=input.selectionStart;
+    const end=input.selectionEnd;
+    input.value=input.value.toUpperCase();
+    try{input.setSelectionRange(start,end)}catch(_){ }
+  });
 }
-
-/* ---------------------------------------------------------
-   Force Class + Section to uppercase while typing
---------------------------------------------------------- */
-const teacherClass = document.getElementById('teacherClass');
-const teacherSection = document.getElementById('teacherSection');
-
-teacherClass.addEventListener('input', () => {
-  const start = teacherClass.selectionStart;
-  const end = teacherClass.selectionEnd;
-
-  teacherClass.value = teacherClass.value.toUpperCase();
-
-  try {
-    teacherClass.setSelectionRange(start, end);
-  } catch (_) {}
+forceUppercase(teacherClass);
+forceUppercase(teacherSection);
+function msg(text,ok=false){const e=document.getElementById('msg');e.className='message '+(ok?'ok':'err');e.textContent=text}
+async function load(){
+ const r=await fetch('/api/admin/teachers'),d=await r.json(),list=document.getElementById('list');
+ if(!r.ok){list.innerHTML=`<div class="message err">${esc(d.error||'Unable to load')}</div>`;return}
+ list.innerHTML=d.length?d.map(t=>{
+  const cls=String(t.class_name||'').toUpperCase();
+  const sec=String(t.section||'').toUpperCase();
+  const assignment=cls?` · Class ${esc(cls)}${sec?`-${esc(sec)}`:''}`:'';
+  return `<div style="padding:14px 0;border-bottom:1px solid var(--line)">
+   <strong>${esc(t.name)}</strong><div class="small muted">${esc(t.username)}${assignment}</div>
+   <div class="small muted">${esc(t.email||'No email')}</div>
+   <div style="margin-top:7px"><span class="badge ${t.active?'badge-green':'badge-gray'}">${t.active?'Active':'Inactive'}</span></div>
+   <div class="actions" style="margin-top:9px"><button class="btn btn-warning" onclick="setPassword(${t.id},${JSON.stringify(t.name)})">Set password</button><button class="btn btn-danger" onclick="del(${t.id},${JSON.stringify(t.name)})">Delete</button></div>
+  </div>`;
+ }).join(''):'<div class="empty">No teachers.</div>';
+}
+document.getElementById('form').addEventListener('submit',async e=>{
+ e.preventDefault();
+ const p={name:teacherName.value.trim(),username:teacherUsername.value.trim(),class_name:teacherClass.value.trim().toUpperCase(),section:teacherSection.value.trim().toUpperCase(),email:teacherEmail.value.trim(),phone:teacherPhone.value.trim(),password:teacherPassword.value};
+ const createBtn=document.getElementById('createBtn');
+ createBtn.disabled=true;
+ try{
+  const r=await fetch('/api/admin/teachers',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(p)}),d=await r.json();
+  if(!r.ok){msg(d.error||'Could not create teacher');return}
+  msg(d.message||'Teacher created',true);e.target.reset();load();
+ }catch(err){msg('Could not create teacher')}finally{createBtn.disabled=false}
 });
-
-teacherSection.addEventListener('input', () => {
-  const start = teacherSection.selectionStart;
-  const end = teacherSection.selectionEnd;
-
-  teacherSection.value = teacherSection.value.toUpperCase();
-
-  try {
-    teacherSection.setSelectionRange(start, end);
-  } catch (_) {}
-});
-
-/* ---------------------------------------------------------
-   Load teachers
---------------------------------------------------------- */
-async function load() {
-  try {
-    const r = await fetch('/api/teachers');
-    const d = await r.json();
-    const list = document.getElementById('list');
-
-    if (!r.ok) {
-      list.innerHTML =
-        `<div class="message err">${esc(d.error || 'Unable to load')}</div>`;
-      return;
-    }
-
-    list.innerHTML = d.length
-      ? d.map(t => {
-          const className = t.class_name
-            ? String(t.class_name).toUpperCase()
-            : '';
-
-          const section = t.section
-            ? String(t.section).toUpperCase()
-            : '';
-
-          const assignment = className
-            ? ` · Class ${esc(className)}${section ? `-${esc(section)}` : ''}`
-            : '';
-
-          return `
-            <div style="padding:14px 0;border-bottom:1px solid var(--line)">
-              <strong>${esc(t.name)}</strong>
-
-              <div class="small muted">
-                ${esc(t.username)}${assignment}
-              </div>
-
-              <div class="small muted">
-                ${esc(t.email || 'No email')}
-              </div>
-
-              <div style="margin-top:7px">
-                <span class="badge ${t.active ? 'badge-green' : 'badge-gray'}">
-                  ${t.active ? 'Active' : 'Inactive'}
-                </span>
-              </div>
-
-              <div class="actions" style="margin-top:9px">
-                <button
-                  class="btn btn-warning"
-                  onclick="setPassword(${t.id}, ${JSON.stringify(t.name)})"
-                >
-                  Set password
-                </button>
-
-                <button
-                  class="btn btn-danger"
-                  onclick="del(${t.id}, ${JSON.stringify(t.name)})"
-                >
-                  Delete
-                </button>
-              </div>
-            </div>
-          `;
-        }).join('')
-      : '<div class="empty">No teachers.</div>';
-
-  } catch (err) {
-    document.getElementById('list').innerHTML =
-      '<div class="message err">Unable to load teacher accounts.</div>';
-  }
-}
-
-/* ---------------------------------------------------------
-   Create teacher
---------------------------------------------------------- */
-document.getElementById('form').addEventListener('submit', async e => {
-  e.preventDefault();
-
-  const p = {
-    name: teacherName.value.trim(),
-    username: teacherUsername.value.trim(),
-
-    // Always store uppercase
-    class_name: teacherClass.value.trim().toUpperCase(),
-    section: teacherSection.value.trim().toUpperCase(),
-
-    email: teacherEmail.value.trim(),
-    phone: teacherPhone.value.trim(),
-    password: teacherPassword.value
-  };
-
-  const createBtn = document.getElementById('createBtn');
-  createBtn.disabled = true;
-
-  try {
-    const r = await fetch('/api/teachers', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(p)
-    });
-
-    const d = await r.json();
-
-    if (!r.ok) {
-      msg(d.error || 'Could not create teacher');
-      return;
-    }
-
-    msg(d.message || 'Teacher created', true);
-
-    e.target.reset();
-
-    // Reset visual uppercase fields too
-    teacherClass.value = '';
-    teacherSection.value = '';
-
-    await load();
-
-  } catch (err) {
-    msg('Could not create teacher');
-  } finally {
-    createBtn.disabled = false;
-  }
-});
-
-/* ---------------------------------------------------------
-   Set password
---------------------------------------------------------- */
-async function setPassword(id, name) {
-  const p = prompt(
-    'Set a new password for ' +
-    name +
-    ' (8+ characters):'
-  );
-
-  if (p === null) return;
-
-  if (p.length < 8) {
-    return alert('Password must be at least 8 characters.');
-  }
-
-  try {
-    const r = await fetch(
-      '/api/teachers/' + id + '/set-password',
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          password: p
-        })
-      }
-    );
-
-    const d = await r.json();
-
-    alert(d.message || d.error || 'Password updated.');
-  } catch (err) {
-    alert('Unable to update password.');
-  }
-}
-
-/* ---------------------------------------------------------
-   Delete teacher
---------------------------------------------------------- */
-async function del(id, name) {
-  if (!confirm('Delete teacher ' + name + '?')) {
-    return;
-  }
-
-  try {
-    const r = await fetch(
-      '/api/teachers/' + id,
-      {
-        method: 'DELETE'
-      }
-    );
-
-    const d = await r.json();
-
-    alert(d.message || d.error || 'Teacher deleted.');
-
-    await load();
-
-  } catch (err) {
-    alert('Unable to delete teacher.');
-  }
-}
-
-/* ---------------------------------------------------------
-   Initial load
---------------------------------------------------------- */
+async function setPassword(id,name){const p=prompt('Set a new password for '+name+' (8+ characters):');if(p===null)return;if(p.length<8)return alert('Password must be at least 8 characters.');const r=await fetch('/api/admin/teachers/'+id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:p})});const d=await r.json();alert(d.message||d.error||'Password updated.');}
+async function del(id,name){if(!confirm('Delete teacher '+name+'?'))return;const r=await fetch('/api/admin/teachers/'+id,{method:'DELETE'});const d=await r.json();alert(d.message||d.error);load()}
 load();
 </script>
-
 {% endblock %}
